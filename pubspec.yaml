@@ -7,10 +7,10 @@ environment:
   sdk: ^3.0.0
 
 dependencies:
-  cloud_firestore: ^6.6.0
-  firebase_analytics: ^12.4.3
-  firebase_core: ^4.11.0
-  firebase_auth: ^5.0.0
+  cloud_firestore: any
+  firebase_analytics: any
+  firebase_core: any
+  firebase_auth: any
   flutter:
     sdk: flutter
 
