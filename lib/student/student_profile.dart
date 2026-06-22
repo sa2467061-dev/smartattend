@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../main.dart'; // Adjust path based on your real location
 
 class StudentProfileScreen extends StatefulWidget {
   const StudentProfileScreen({super.key});
@@ -8,24 +9,23 @@ class StudentProfileScreen extends StatefulWidget {
 }
 
 class _StudentProfileScreenState extends State<StudentProfileScreen> {
-  bool _isDarkMode = false; // State holder for the dark mode switch/slider
-
   @override
   Widget build(BuildContext context) {
+    // Standardizing theme accessors
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Profile', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xff1f2937))),
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        automaticallyImplyLeading: false, // Removes default left back arrow
+        automaticallyImplyLeading: false,
+        title: const Text(
+          'Profile',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         actions: [
-          // Back button moved explicitly to the top right corner
           IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xff1f2937)),
-            onPressed: () {
-              Navigator.pop(context);
-            },
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context),
           ),
         ],
       ),
@@ -34,75 +34,90 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         child: Column(
           children: [
             const SizedBox(height: 16),
-            const CircleAvatar(
+
+            // --- Profile Avatar ---
+            CircleAvatar(
               radius: 50,
-              backgroundColor: Color(0xff004ce6),
-              child: Icon(Icons.person, size: 50, color: Colors.white),
+              backgroundColor: colorScheme.primary,
+              child: const Icon(Icons.person, size: 50, color: Colors.white),
             ),
             const SizedBox(height: 16),
-            const Text(
+
+            // --- Name & Faculty ---
+            Text(
               'Ahmad Ibrahim',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
             ),
-            const Text(
+            Text(
               'Faculty of Computer Science',
-              style: TextStyle(color: Colors.grey, fontSize: 14),
+              style: TextStyle(
+                color: theme.brightness == Brightness.dark ? Colors.white54 : Colors.grey,
+                fontSize: 14,
+              ),
             ),
             const SizedBox(height: 32),
-            
-            // Student Info Cards
-            _buildProfileTile(Icons.badge_outlined, 'Student ID', '2024288464'),
+
+            // --- Student Info Cards ---
+            _buildProfileTile(context, Icons.badge_outlined, 'Student ID', '2024288464'),
             const SizedBox(height: 12),
-            _buildProfileTile(Icons.smartphone_rounded, 'Device Link Status', 'Linked Device (SMART-V1)'),
+            _buildProfileTile(context, Icons.smartphone_rounded, 'Device Link Status', 'Linked Device (SMART-V1)'),
             const SizedBox(height: 12),
-            _buildProfileTile(Icons.analytics_outlined, 'Overall Attendance', '94.2% (Target Achieved)'),
-            
+            _buildProfileTile(context, Icons.analytics_outlined, 'Overall Attendance', '94.2% (Target Achieved)'),
+
             const SizedBox(height: 24),
-            const Divider(),
+            Divider(color: theme.dividerColor),
             const SizedBox(height: 12),
 
-            // --- SETTINGS / ACTIONS LIST ---
-            
-            // Change Profile Option
+            // --- Change Profile Option ---
             ListTile(
-              leading: const Icon(Icons.edit_outlined, color: Color(0xff1f2937)),
-              title: const Text('Change Profile', style: TextStyle(fontWeight: FontWeight.w500)),
-              trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-              onTap: () {
-                // Action to change profile image/details
+              leading: Icon(Icons.edit_outlined, color: colorScheme.onSurface.withOpacity(0.8)),
+              title: Text(
+                'Change Profile',
+                style: TextStyle(fontWeight: FontWeight.w500, color: colorScheme.onSurface),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {},
+            ),
+
+            // --- Dark Mode Switch ---
+            ValueListenableBuilder<ThemeMode>(
+              valueListenable: themeNotifier,
+              builder: (context, mode, _) {
+                return SwitchListTile(
+                  secondary: Icon(Icons.dark_mode_outlined, color: colorScheme.onSurface.withOpacity(0.8)),
+                  title: Text(
+                    'Dark Mode',
+                    style: TextStyle(fontWeight: FontWeight.w500, color: colorScheme.onSurface),
+                  ),
+                  activeColor: colorScheme.primary,
+                  value: mode == ThemeMode.dark,
+                  onChanged: (bool value) {
+                    themeNotifier.value = value ? ThemeMode.dark : ThemeMode.light;
+                  },
+                );
               },
             ),
 
-            // Dark Mode Option (Switch Slider)
-            SwitchListTile(
-              secondary: const Icon(Icons.dark_mode_outlined, color: Color(0xff1f2937)),
-              title: const Text('Dark Mode', style: TextStyle(fontWeight: FontWeight.w500)),
-              activeColor: const Color(0xff004ce6),
-              value: _isDarkMode,
-              onChanged: (bool value) {
-                setState(() {
-                  _isDarkMode = value;
-                });
-              },
-            ),
-            
             const SizedBox(height: 32),
 
-            // Red Logout Button
+            // --- Log Out Button ---
             ElevatedButton.icon(
               onPressed: () {
-                // Wipe navigation stack back to Login
                 Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade50,
-                foregroundColor: Colors.red,
+                backgroundColor: colorScheme.errorContainer,
+                foregroundColor: colorScheme.onErrorContainer,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                minimumSize: const Size.fromHeight(50), // Makes button full width
+                minimumSize: const Size.fromHeight(50),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: Colors.red.shade200),
+                  side: BorderSide(color: colorScheme.error.withOpacity(0.5)),
                 ),
               ),
               icon: const Icon(Icons.logout_rounded, size: 20),
@@ -111,32 +126,49 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
+
+            const SizedBox(height: 24),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildProfileTile(IconData icon, String title, String subtitle) {
+  Widget _buildProfileTile(BuildContext context, IconData icon, String title, String subtitle) {
+    final theme = Theme.of(context);
+    
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xfff9fafb),
+        color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: theme.dividerColor),
       ),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xff004ce6)),
+          Icon(icon, color: theme.colorScheme.primary),
           const SizedBox(width: 16),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: theme.brightness == Brightness.dark ? Colors.white54 : Colors.grey,
+                ),
+              ),
               const SizedBox(height: 2),
-              Text(subtitle, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xff1f2937))),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
             ],
-          )
+          ),
         ],
       ),
     );

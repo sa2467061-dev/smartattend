@@ -3,35 +3,47 @@ import 'package:firebase_core/firebase_core.dart'; // REQUIRED FOR INITIALIZATIO
 import 'package:cloud_firestore/cloud_firestore.dart'; 
 import 'student/student_dashboard.dart'; 
 import 'lecturer/lecturer_dashboard.dart'; 
-import '../screens/signin_screen.dart'; // Import the LoginScreen for initial route
-// 1. THIS WAS MISSING: The actual application entry point
+import '../screens/signin_screen.dart'; 
+
+// 1. App entry point with proper Firebase initialization
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(); // Initializes Firebase app config before running UI
-  runApp(const MyApp());
+  runApp(const SmartAttendApp());
 }
 
-// 2. THIS WAS MISSING: The root widget wrapper
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+// Notifier to toggle theme from anywhere in the app (from GitHub)
+final themeNotifier = ValueNotifier<ThemeMode>(ThemeMode.system);
 
- @override
+// 2. The root widget wrapper using GitHub's naming and theme integration
+class SmartAttendApp extends StatelessWidget {
+  const SmartAttendApp({super.key});
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Smart Attend',
-      debugShowCheckedModeBanner: false,
-      home: const LoginScreen(),
-      // Define the explicit named routing keys here:
-      routes: {
-        '/signin': (context) => const SignInScreen(),
-        '/student-dashboard': (context) => const StudentDashboard(),
-        '/lecturer-dashboard': (context) => const LecturerDashboard(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeNotifier,
+      builder: (context, mode, _) {
+        return MaterialApp(
+          title: 'SMARTATTEND',
+          debugShowCheckedModeBanner: false,
+          // theme: AppTheme.lightTheme, // Uncomment if you have an AppTheme class defined
+          // darkTheme: AppTheme.darkTheme,  // Uncomment if you have an AppTheme class defined
+          themeMode: mode,
+          initialRoute: '/login', // Set to /login since LoginScreen is defined below
+          routes: {
+            '/login': (context) => const LoginScreen(),
+            '/signin': (context) => const SignInScreen(),
+            '/student-dashboard': (context) => const StudentDashboard(),
+            '/lecturer-dashboard': (context) => const LecturerDashboard(),
+          },
+        );
       },
     );
   }
 }
 
-// --- YOUR LOGIN SCREEN CODE ---
+// --- YOUR LOGIN SCREEN CODE (Preserved from Local HEAD) ---
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 

@@ -16,7 +16,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
   @override
   Widget build(BuildContext context) {
     // Helper function to handle opening the Profile Screen seamlessly
-    void _openProfile() {
+    void openProfile() {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const StudentProfileScreen()),
@@ -24,16 +24,16 @@ class _StudentDashboardState extends State<StudentDashboard> {
     }
 
     // Only Home, Classes, and History are managed by the bottom bar tabs now
-    final List<Widget> _tabs = [
-      StudentHomeTab(onProfilePressed: _openProfile), 
-      StudentClassScreen(onProfilePressed: _openProfile),   // Pass to class screen top bar too
-      StudentHistoryScreen(onProfilePressed: _openProfile), // Pass to history screen top bar too
+    final List<Widget> tabs = [
+      StudentHomeTab(onProfilePressed: openProfile), 
+      StudentClassScreen(onProfilePressed: openProfile),   // Pass to class screen top bar too
+      StudentHistoryScreen(onProfilePressed: openProfile), // Pass to history screen top bar too
     ];
 
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
-        children: _tabs,
+        children: tabs,
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
