@@ -16,7 +16,7 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
   @override
   Widget build(BuildContext context) {
     // Helper function to handle opening the Lecturer Profile Screen
-    void _openProfile() {
+    void openProfile() {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const LecturerProfileScreen()),
@@ -24,16 +24,16 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
     }
 
     // Tabs configuration containing Home, Classes, and History
-    final List<Widget> _tabs = [
-      LecturerHomeTab(onProfilePressed: _openProfile),
-      LecturerClassScreen(onProfilePressed: _openProfile),   // Pass to top bar action
-      LecturerHistoryScreen(onProfilePressed: _openProfile), // Pass to top bar action
+    final List<Widget> tabs = [
+      LecturerHomeTab(onProfilePressed: openProfile),
+      LecturerClassScreen(onProfilePressed: openProfile),   // Pass to top bar action
+      LecturerHistoryScreen(onProfilePressed: openProfile), // Pass to top bar action
     ];
 
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
-        children: _tabs,
+        children: tabs,
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,

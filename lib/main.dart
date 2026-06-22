@@ -20,24 +20,34 @@ void main() async {
   runApp(const SmartAttendApp());
 }
 
+// Notifier to toggle theme from anywhere in the app
+final themeNotifier = ValueNotifier<ThemeMode>(ThemeMode.system);
+
 class SmartAttendApp extends StatelessWidget {
   const SmartAttendApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'SMARTATTEND',
-      theme: AppTheme.lightTheme,
-      initialRoute: '/splash',
-      routes: {
-        '/splash': (context) => const SplashScreen(),
-        '/login': (context) => const LoginScreen(),
-        '/signin': (context) => const SignInScreen(),
-        '/student-dashboard': (context) => const StudentDashboard(),
-         '/lecturer-dashboard': (context) => const LecturerDashboard(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeNotifier,
+      builder: (context, mode, _) {
+        return MaterialApp(
+          title: 'SMARTATTEND',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: mode,
+          initialRoute: '/splash',
+          routes: {
+            '/splash': (context) => const SplashScreen(),
+            '/login': (context) => const LoginScreen(),
+            '/signin': (context) => const SignInScreen(),
+            '/student-dashboard': (context) => const StudentDashboard(),
+            '/lecturer-dashboard': (context) => const LecturerDashboard(),
+          },
+        );
       },
     );
   }
 }
-
 

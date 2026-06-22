@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../main.dart';
 
 class StudentProfileScreen extends StatefulWidget {
   const StudentProfileScreen({super.key});
@@ -8,21 +9,29 @@ class StudentProfileScreen extends StatefulWidget {
 }
 
 class _StudentProfileScreenState extends State<StudentProfileScreen> {
-  bool _isDarkMode = false; // State holder for the dark mode switch/slider
-
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? const Color(0xff121212) : Colors.white,
       appBar: AppBar(
-        title: const Text('Profile', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xff1f2937))),
-        backgroundColor: Colors.white,
+        title: Text(
+          'Profile',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : const Color(0xff1f2937),
+          ),
+        ),
+        backgroundColor: isDark ? const Color(0xff1e1e1e) : Colors.white,
         elevation: 0.5,
-        automaticallyImplyLeading: false, // Removes default left back arrow
+        automaticallyImplyLeading: false,
         actions: [
-          // Back button moved explicitly to the top right corner
           IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xff1f2937)),
+            icon: Icon(
+              Icons.arrow_back,
+              color: isDark ? Colors.white : const Color(0xff1f2937),
+            ),
             onPressed: () {
               Navigator.pop(context);
             },
@@ -34,75 +43,130 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         child: Column(
           children: [
             const SizedBox(height: 16),
-            const CircleAvatar(
+
+            // --- Profile Avatar ---
+            CircleAvatar(
               radius: 50,
-              backgroundColor: Color(0xff004ce6),
-              child: Icon(Icons.person, size: 50, color: Colors.white),
+              backgroundColor: isDark ? const Color(0xff1a3a8f) : const Color(0xff004ce6),
+              child: const Icon(Icons.person, size: 50, color: Colors.white),
             ),
             const SizedBox(height: 16),
-            const Text(
+
+            // --- Name & Faculty ---
+            Text(
               'Ahmad Ibrahim',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : const Color(0xff1f2937),
+              ),
             ),
-            const Text(
+            Text(
               'Faculty of Computer Science',
-              style: TextStyle(color: Colors.grey, fontSize: 14),
+              style: TextStyle(
+                color: isDark ? Colors.white54 : Colors.grey,
+                fontSize: 14,
+              ),
             ),
             const SizedBox(height: 32),
-            
-            // Student Info Cards
-            _buildProfileTile(Icons.badge_outlined, 'Student ID', '2024288464'),
+
+            // --- Student Info Cards ---
+            _buildProfileTile(
+              Icons.badge_outlined,
+              'Student ID',
+              '2024288464',
+              isDark,
+            ),
             const SizedBox(height: 12),
-            _buildProfileTile(Icons.smartphone_rounded, 'Device Link Status', 'Linked Device (SMART-V1)'),
+            _buildProfileTile(
+              Icons.smartphone_rounded,
+              'Device Link Status',
+              'Linked Device (SMART-V1)',
+              isDark,
+            ),
             const SizedBox(height: 12),
-            _buildProfileTile(Icons.analytics_outlined, 'Overall Attendance', '94.2% (Target Achieved)'),
-            
+            _buildProfileTile(
+              Icons.analytics_outlined,
+              'Overall Attendance',
+              '94.2% (Target Achieved)',
+              isDark,
+            ),
+
             const SizedBox(height: 24),
-            const Divider(),
+            Divider(color: isDark ? Colors.white12 : Colors.grey.shade200),
             const SizedBox(height: 12),
 
-            // --- SETTINGS / ACTIONS LIST ---
-            
-            // Change Profile Option
+            // --- Change Profile Option ---
             ListTile(
-              leading: const Icon(Icons.edit_outlined, color: Color(0xff1f2937)),
-              title: const Text('Change Profile', style: TextStyle(fontWeight: FontWeight.w500)),
-              trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-              onTap: () {
-                // Action to change profile image/details
+              leading: Icon(
+                Icons.edit_outlined,
+                color: isDark ? Colors.white70 : const Color(0xff1f2937),
+              ),
+              title: Text(
+                'Change Profile',
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  color: isDark ? Colors.white : const Color(0xff1f2937),
+                ),
+              ),
+              trailing: Icon(
+                Icons.chevron_right,
+                color: isDark ? Colors.white38 : Colors.grey,
+              ),
+              onTap: () {},
+            ),
+
+            // --- Dark Mode Switch (wired to themeNotifier) ---
+            ValueListenableBuilder<ThemeMode>(
+              valueListenable: themeNotifier,
+              builder: (context, mode, _) {
+                return SwitchListTile(
+                  secondary: Icon(
+                    Icons.dark_mode_outlined,
+                    color: isDark ? Colors.white70 : const Color(0xff1f2937),
+                  ),
+                  title: Text(
+                    'Dark Mode',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? Colors.white : const Color(0xff1f2937),
+                    ),
+                  ),
+                  activeThumbColor: const Color(0xff004ce6),
+                  activeTrackColor: const Color(0xff004ce6).withAlpha(80),
+                  value: mode == ThemeMode.dark,
+                  onChanged: (bool value) {
+                    themeNotifier.value =
+                        value ? ThemeMode.dark : ThemeMode.light;
+                  },
+                );
               },
             ),
 
-            // Dark Mode Option (Switch Slider)
-            SwitchListTile(
-              secondary: const Icon(Icons.dark_mode_outlined, color: Color(0xff1f2937)),
-              title: const Text('Dark Mode', style: TextStyle(fontWeight: FontWeight.w500)),
-              activeColor: const Color(0xff004ce6),
-              value: _isDarkMode,
-              onChanged: (bool value) {
-                setState(() {
-                  _isDarkMode = value;
-                });
-              },
-            ),
-            
             const SizedBox(height: 32),
 
-            // Red Logout Button
+            // --- Log Out Button ---
             ElevatedButton.icon(
               onPressed: () {
-                // Wipe navigation stack back to Login
-                Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                Navigator.pushNamedAndRemoveUntil(
+                    context, '/login', (route) => false);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade50,
-                foregroundColor: Colors.red,
+                backgroundColor: isDark
+                    ? Colors.red.shade900.withAlpha(120)
+                    : Colors.red.shade50,
+                foregroundColor:
+                    isDark ? Colors.red.shade300 : Colors.red,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                minimumSize: const Size.fromHeight(50), // Makes button full width
+                minimumSize: const Size.fromHeight(50),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: Colors.red.shade200),
+                  side: BorderSide(
+                    color: isDark
+                        ? Colors.red.shade800
+                        : Colors.red.shade200,
+                  ),
                 ),
               ),
               icon: const Icon(Icons.logout_rounded, size: 20),
@@ -111,32 +175,53 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
+
+            const SizedBox(height: 24),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildProfileTile(IconData icon, String title, String subtitle) {
+  Widget _buildProfileTile(
+      IconData icon, String title, String subtitle, bool isDark) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xfff9fafb),
+        color: isDark ? const Color(0xff1e1e1e) : const Color(0xfff9fafb),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: isDark ? Colors.white12 : Colors.grey.shade200,
+        ),
       ),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xff004ce6)),
+          Icon(
+            icon,
+            color: isDark ? const Color(0xff4d8ef0) : const Color(0xff004ce6),
+          ),
           const SizedBox(width: 16),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark ? Colors.white54 : Colors.grey,
+                ),
+              ),
               const SizedBox(height: 2),
-              Text(subtitle, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xff1f2937))),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : const Color(0xff1f2937),
+                ),
+              ),
             ],
-          )
+          ),
         ],
       ),
     );

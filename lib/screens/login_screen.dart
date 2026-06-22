@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'signin_screen.dart'; // Import the SignInScreen for navigation
+// Import the SignInScreen for navigation
 import '../student/student_dashboard.dart'; 
  import '../lecturer/lecturer_dashboard.dart'; 
 

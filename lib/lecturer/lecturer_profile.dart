@@ -1,48 +1,81 @@
 import 'package:flutter/material.dart';
+import '../main.dart';
 
 class LecturerProfileScreen extends StatelessWidget {
   const LecturerProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    const Color themeColor = Color(0xff111827); // Dark lecturer theme color
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color themeColor = isDark ? Colors.white : const Color(0xff111827);
 
     return Scaffold(
-      backgroundColor: const Color(0xfff8f9fa),
+      backgroundColor: isDark ? const Color(0xff121212) : const Color(0xfff8f9fa),
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: isDark ? const Color(0xff1e1e1e) : Colors.white,
+        foregroundColor: isDark ? Colors.white : Colors.black,
         elevation: 0.5,
-        title: const Text(
+        title: Text(
           'Profile',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            color: isDark ? Colors.white : Colors.black,
+          ),
         ),
         centerTitle: true,
+        actions: [
+          // Dark mode toggle
+          ValueListenableBuilder<ThemeMode>(
+            valueListenable: themeNotifier,
+            builder: (context, mode, _) {
+              return IconButton(
+                icon: Icon(
+                  mode == ThemeMode.dark ? Icons.light_mode : Icons.dark_mode,
+                  color: isDark ? Colors.white : const Color(0xff111827),
+                ),
+                onPressed: () {
+                  themeNotifier.value = mode == ThemeMode.dark
+                      ? ThemeMode.light
+                      : ThemeMode.dark;
+                },
+              );
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(
           children: [
             // --- Top Profile Header Block ---
             Container(
-              color: Colors.white,
+              color: isDark ? const Color(0xff1e1e1e) : Colors.white,
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 28.0),
               child: Column(
                 children: [
-                  const CircleAvatar(
+                  CircleAvatar(
                     radius: 45,
-                    backgroundColor: themeColor,
-                    child: Icon(Icons.person, size: 50, color: Colors.white),
+                    backgroundColor: isDark ? Colors.white24 : const Color(0xff111827),
+                    child: const Icon(Icons.person, size: 50, color: Colors.white),
                   ),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     'Dr. Ahmad Ibrahim',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xff111827)),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : const Color(0xff111827),
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Senior Lecturer',
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.white54 : Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ),
@@ -50,32 +83,32 @@ class LecturerProfileScreen extends StatelessWidget {
             const SizedBox(height: 16),
 
             // --- Account Information Section ---
-            _buildSectionHeader('ACCOUNT INFORMATION'),
+            _buildSectionHeader('ACCOUNT INFORMATION', isDark),
             Container(
-              color: Colors.white,
+              color: isDark ? const Color(0xff1e1e1e) : Colors.white,
               child: Column(
                 children: [
-                  _buildProfileTile(Icons.badge_outlined, 'Staff ID', 'STF99284', themeColor),
-                  _buildDivider(),
-                  _buildProfileTile(Icons.mail_outline_rounded, 'Email', 'ahmad.ibrahim@uitm.edu.my', themeColor),
-                  _buildDivider(),
-                  _buildProfileTile(Icons.business_center_outlined, 'Faculty', 'Faculty of Computer & Mathematical Sciences', themeColor),
+                  _buildProfileTile(Icons.badge_outlined, 'Staff ID', 'STF99284', themeColor, isDark),
+                  _buildDivider(isDark),
+                  _buildProfileTile(Icons.mail_outline_rounded, 'Email', 'ahmad.ibrahim@uitm.edu.my', themeColor, isDark),
+                  _buildDivider(isDark),
+                  _buildProfileTile(Icons.business_center_outlined, 'Faculty', 'Faculty of Computer & Mathematical Sciences', themeColor, isDark),
                 ],
               ),
             ),
             const SizedBox(height: 16),
 
             // --- Preferences & Security Section ---
-            _buildSectionHeader('PREFERENCES & SECURITY'),
+            _buildSectionHeader('PREFERENCES & SECURITY', isDark),
             Container(
-              color: Colors.white,
+              color: isDark ? const Color(0xff1e1e1e) : Colors.white,
               child: Column(
                 children: [
-                  _buildInteractiveTile(Icons.lock_outline_rounded, 'Change Password', () {}),
-                  _buildDivider(),
-                  _buildInteractiveTile(Icons.notifications_none_rounded, 'Notification Settings', () {}),
-                  _buildDivider(),
-                  _buildInteractiveTile(Icons.help_outline_rounded, 'Help & Support', () {}),
+                  _buildInteractiveTile(Icons.lock_outline_rounded, 'Change Password', () {}, isDark),
+                  _buildDivider(isDark),
+                  _buildInteractiveTile(Icons.notifications_none_rounded, 'Notification Settings', () {}, isDark),
+                  _buildDivider(isDark),
+                  _buildInteractiveTile(Icons.help_outline_rounded, 'Help & Support', () {}, isDark),
                 ],
               ),
             ),
@@ -88,14 +121,20 @@ class LecturerProfileScreen extends StatelessWidget {
                 width: double.infinity,
                 child: TextButton.icon(
                   style: TextButton.styleFrom(
-                    backgroundColor: Colors.red.shade50,
-                    foregroundColor: Colors.red.shade700,
+                    backgroundColor: isDark
+                        ? Colors.red.shade900.withAlpha(120)
+                        : Colors.red.shade50,
+                    foregroundColor: isDark
+                        ? Colors.red.shade300
+                        : Colors.red.shade700,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   onPressed: () {
-                    // Clears all application route states and safely drops user back onto the Login page
-                    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                    Navigator.pushNamedAndRemoveUntil(
+                        context, '/login', (route) => false);
                   },
                   icon: const Icon(Icons.logout_rounded, size: 20),
                   label: const Text(
@@ -112,22 +151,26 @@ class LecturerProfileScreen extends StatelessWidget {
     );
   }
 
-  // Helper widget to build gray sub-section structural headings
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(String title, bool isDark) {
     return Padding(
       padding: const EdgeInsets.only(left: 16.0, bottom: 8.0, right: 16.0),
       child: Align(
         alignment: Alignment.centerLeft,
         child: Text(
           title,
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 0.8),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white38 : Colors.grey.shade500,
+            letterSpacing: 0.8,
+          ),
         ),
       ),
     );
   }
 
-  // Reusable display tile for non-editable database info fields
-  Widget _buildProfileTile(IconData icon, String label, String value, Color themeColor) {
+  Widget _buildProfileTile(
+      IconData icon, String label, String value, Color themeColor, bool isDark) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
       child: Row(
@@ -136,15 +179,23 @@ class LecturerProfileScreen extends StatelessWidget {
           const SizedBox(width: 14),
           Text(
             label,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.grey),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: isDark ? Colors.white54 : Colors.grey,
+            ),
           ),
           const Spacer(),
           Expanded(
             flex: 2,
             child: Text(
               value,
-              textAlign: Alignment.centerRight == Alignment.centerRight ? TextAlign.end : TextAlign.start,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xff111827)),
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.white : const Color(0xff111827),
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -154,28 +205,39 @@ class LecturerProfileScreen extends StatelessWidget {
     );
   }
 
-  // Reusable interactive chevron tile for setting paths
-  Widget _buildInteractiveTile(IconData icon, String label, VoidCallback onTap) {
+  Widget _buildInteractiveTile(
+      IconData icon, String label, VoidCallback onTap, bool isDark) {
     return ListTile(
-      leading: Icon(icon, color: Colors.grey.shade700, size: 22),
+      leading: Icon(
+        icon,
+        color: isDark ? Colors.white54 : Colors.grey.shade700,
+        size: 22,
+      ),
       title: Text(
         label,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xff111827)),
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: isDark ? Colors.white : const Color(0xff111827),
+        ),
       ),
-      trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey.shade400),
+      trailing: Icon(
+        Icons.arrow_forward_ios_rounded,
+        size: 14,
+        color: isDark ? Colors.white30 : Colors.grey.shade400,
+      ),
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 2.0),
     );
   }
 
-  // Thin standard layout divider decoration lines
-  Widget _buildDivider() {
+  Widget _buildDivider(bool isDark) {
     return Divider(
       height: 1,
       thickness: 1,
       indent: 16,
       endIndent: 16,
-      color: Colors.grey.shade100,
+      color: isDark ? Colors.white10 : Colors.grey.shade100,
     );
   }
 }
