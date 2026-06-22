@@ -13,7 +13,10 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
     Timer(const Duration(seconds: 3), () {
-      Navigator.pushReplacementNamed(context, '/login');
+      // Check if the widget is still in the widget tree before navigating
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/login');
+      }
     });
   }
 
@@ -43,7 +46,10 @@ class _SplashScreenState extends State<SplashScreen> {
             SizedBox(height: 8),
             Text(
               'Geofence-Verified Attendance',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 14,
+              ),
             ),
           ],
         ),
