@@ -41,9 +41,9 @@ class _SignInScreenState extends State<SignInScreen> {
 
     // placeholder navigation stack clear targeting dashboards
     if (_isStudent) {
-      Navigator.pushNamedAndRemoveUntil(context, '/student_dashboard', (route) => false);
+      Navigator.pushNamedAndRemoveUntil(context, '/student-dashboard', (route) => false);
     } else {
-      Navigator.pushNamedAndRemoveUntil(context, '/lecturer_dashboard', (route) => false);
+      Navigator.pushNamedAndRemoveUntil(context, '/lecturer-dashboard', (route) => false);
     }
   }
 

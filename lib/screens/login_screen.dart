@@ -229,27 +229,23 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 14),
 
               // --- Sign Up Button ---
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xff004ce6),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  elevation: 0,
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SignInScreen(), 
-                    ),
-                  );
-                },
-                child: const Text(
-                  'Sign Up',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
+ElevatedButton(
+  style: ElevatedButton.styleFrom(
+    backgroundColor: const Color(0xff004ce6),
+    foregroundColor: Colors.white,
+    padding: const EdgeInsets.symmetric(vertical: 16),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    elevation: 0,
+  ),
+  onPressed: () {
+    // CLEANER/FIXED: Leverages the named routing setup in main.dart
+    Navigator.pushNamed(context, '/signin');
+  },
+  child: const Text(
+    'Sign Up',
+    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+  ),
+),
             ],
           ),
         ),
