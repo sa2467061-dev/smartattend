@@ -1,21 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart'; // REQUIRED FOR INITIALIZATION
+import 'package:firebase_core/firebase_core.dart'; 
 import 'package:cloud_firestore/cloud_firestore.dart'; 
 import 'student/student_dashboard.dart'; 
 import 'lecturer/lecturer_dashboard.dart'; 
 import '../screens/signin_screen.dart'; 
 
-// 1. App entry point with proper Firebase initialization
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(); // Initializes Firebase app config before running UI
+  await Firebase.initializeApp(); 
   runApp(const SmartAttendApp());
 }
 
-// Notifier to toggle theme from anywhere in the app (from GitHub)
 final themeNotifier = ValueNotifier<ThemeMode>(ThemeMode.system);
 
-// 2. The root widget wrapper using GitHub's naming and theme integration
 class SmartAttendApp extends StatelessWidget {
   const SmartAttendApp({super.key});
 
@@ -27,13 +24,12 @@ class SmartAttendApp extends StatelessWidget {
         return MaterialApp(
           title: 'SMARTATTEND',
           debugShowCheckedModeBanner: false,
-          // theme: AppTheme.lightTheme, // Uncomment if you have an AppTheme class defined
-          // darkTheme: AppTheme.darkTheme,  // Uncomment if you have an AppTheme class defined
           themeMode: mode,
-          initialRoute: '/login', // Set to /login since LoginScreen is defined below
+          initialRoute: '/login', 
           routes: {
             '/login': (context) => const LoginScreen(),
             '/signin': (context) => const SignInScreen(),
+            // Kept basic named routes for fallbacks if needed elsewhere
             '/student-dashboard': (context) => const StudentDashboard(),
             '/lecturer-dashboard': (context) => const LecturerDashboard(),
           },
@@ -43,7 +39,6 @@ class SmartAttendApp extends StatelessWidget {
   }
 }
 
-// --- YOUR LOGIN SCREEN CODE (Preserved from Local HEAD) ---
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -83,15 +78,23 @@ class _LoginScreenState extends State<LoginScreen> {
       if (querySnapshot.docs.isNotEmpty) {
         if (!mounted) return;
 
+        // CRITICAL FIX: Extract the actual document ID (uid) from your custom Firestore document
+        final userDoc = querySnapshot.docs.first;
+        final String firestoreUid = userDoc.id; 
+
         if (_isStudent) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const StudentDashboard()),
+            MaterialPageRoute(
+              builder: (context) => StudentDashboard(userId: firestoreUid),
+            ),
           );
         } else {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const LecturerDashboard()),
+            MaterialPageRoute(
+              builder: (context) => LecturerDashboard(userId: firestoreUid),
+            ),
           );
         }
       } else {
@@ -128,7 +131,6 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 40),
-              
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -138,11 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: const Color(0xff004ce6),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(
-                      Icons.domain_verification,
-                      size: 32,
-                      color: Colors.white,
-                    ),
+                    child: const Icon(Icons.domain_verification, size: 32, color: Colors.white),
                   ),
                   const SizedBox(width: 10),
                   const Text.rich(
@@ -161,26 +159,15 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               
               const SizedBox(height: 56),
-
-              const Text(
-                'Welcome back',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xff111827)),
-              ),
+              const Text('Welcome back', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xff111827))),
               const SizedBox(height: 6),
-              const Text(
-                'Sign in to your account',
-                style: TextStyle(color: Colors.grey, fontSize: 15),
-              ),
-              
+              const Text('Sign in to your account', style: TextStyle(color: Colors.grey, fontSize: 15)),
               const SizedBox(height: 28),
 
               Container(
                 height: 50,
                 padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: const Color(0xffe9ecef),
-                  borderRadius: BorderRadius.circular(25),
-                ),
+                decoration: BoxDecoration(color: const Color(0xffe9ecef), borderRadius: BorderRadius.circular(25)),
                 child: Row(
                   children: [
                     Expanded(
@@ -194,11 +181,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Center(
                             child: Text(
                               'Student',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: _isStudent ? const Color(0xff004ce6) : Colors.grey.shade600,
-                              ),
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _isStudent ? const Color(0xff004ce6) : Colors.grey.shade600),
                             ),
                           ),
                         ),
@@ -215,11 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Center(
                             child: Text(
                               'Lecturer',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: !_isStudent ? const Color(0xff111827) : Colors.grey.shade600,
-                              ),
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: !_isStudent ? const Color(0xff111827) : Colors.grey.shade600),
                             ),
                           ),
                         ),
@@ -230,7 +209,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               
               const SizedBox(height: 28),
-
               const Text('Email', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xff374151), fontSize: 14)),
               const SizedBox(height: 8),
               TextField(
@@ -249,7 +227,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               
               const SizedBox(height: 20),
-
               const Text('Password', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xff374151), fontSize: 14)),
               const SizedBox(height: 8),
               TextField(
@@ -280,45 +257,29 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               
               const SizedBox(height: 12),
-
               OutlinedButton(
                 style: OutlinedButton.styleFrom(
                   backgroundColor: Colors.white,
                   side: BorderSide(color: Colors.grey.shade300),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  elevation: 0,
                 ),
                 onPressed: _isLoading ? null : _loginWithFirestore, 
                 child: _isLoading 
-                    ? const SizedBox(
-                        height: 20, 
-                        width: 20, 
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black)
-                      )
-                    : const Text(
-                        'Log In',
-                        style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                    : const Text('Log In', style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
               ),
               
               const SizedBox(height: 14),
-
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xff004ce6),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  elevation: 0,
                 ),
-                onPressed: () {
-                  Navigator.pushNamed(context, '/signin');
-                },
-                child: const Text(
-                  'Sign Up',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                onPressed: () => Navigator.pushNamed(context, '/signin'),
+                child: const Text('Sign Up', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ],
           ),

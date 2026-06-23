@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../lecturer/lecturer_class.dart';
 import '../lecturer/lecturer_history.dart';
 import '../lecturer/lecturer_profile.dart';
 
 class LecturerDashboard extends StatefulWidget {
-  const LecturerDashboard({super.key});
+  final String? userId; // Receives ID passed down from login/auth workflow
+  const LecturerDashboard({super.key, this.userId});
 
   @override
   State<LecturerDashboard> createState() => _LecturerDashboardState();
@@ -15,19 +18,22 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    // Safely pull from parameter injection or fallback directly to active FirebaseAuth instance
+    final String? effectiveUid = widget.userId ?? FirebaseAuth.instance.currentUser?.uid;
+
     // Helper function to handle opening the Lecturer Profile Screen
     void openProfile() {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => const LecturerProfileScreen()),
+        MaterialPageRoute(builder: (context) => LecturerProfileScreen(userId: effectiveUid)),
       );
     }
 
     // Tabs configuration containing Home, Classes, and History
     final List<Widget> tabs = [
-      LecturerHomeTab(onProfilePressed: openProfile),
-      LecturerClassScreen(onProfilePressed: openProfile),   // Pass to top bar action
-      LecturerHistoryScreen(onProfilePressed: openProfile), // Pass to top bar action
+      LecturerHomeTab(onProfilePressed: openProfile, userId: effectiveUid),
+      LecturerClassScreen(onProfilePressed: openProfile, userId: effectiveUid), // Pass userId to class screen for Firestore queries
+      LecturerHistoryScreen(onProfilePressed: openProfile, userId: effectiveUid), // Pass userId to history screen for Firestore queries
     ];
 
     return Scaffold(
@@ -43,7 +49,7 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
           });
         },
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xff111827), // Dark grey theme for lecturers
+        selectedItemColor: const Color(0xff111827), 
         unselectedItemColor: Colors.grey.shade500,
         selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
         unselectedLabelStyle: const TextStyle(fontSize: 12),
@@ -72,10 +78,12 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
 // Lecturer Main Home View Tab
 class LecturerHomeTab extends StatelessWidget {
   final VoidCallback onProfilePressed;
+  final String? userId;
 
   const LecturerHomeTab({
     super.key,
     required this.onProfilePressed,
+    this.userId,
   });
 
   @override
@@ -101,7 +109,7 @@ class LecturerHomeTab extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: GestureDetector(
-              onTap: onProfilePressed, // Navigates to profile screen view
+              onTap: onProfilePressed, 
               child: const CircleAvatar(
                 radius: 18,
                 backgroundColor: Color(0xff111827),
@@ -117,12 +125,30 @@ class LecturerHomeTab extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Welcome Back, Lecturer',
-                style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xff1f2937)),
+              // FutureBuilder handles loading state dynamically from Firestore
+              FutureBuilder<DocumentSnapshot>(
+                future: userId != null 
+                    ? FirebaseFirestore.instance.collection('users').doc(userId).get()
+                    : null,
+                builder: (context, snapshot) {
+                  String displayName = 'Lecturer'; // Fallback text string
+
+                  if (snapshot.hasData && snapshot.data!.exists) {
+                    final data = snapshot.data!.data() as Map<String, dynamic>?;
+                    // Grab 'name' key property from your database mapping structure
+                    if (data != null && data['name'] != null) {
+                      displayName = data['name'];
+                    }
+                  }
+
+                  return Text(
+                    'Welcome Back, $displayName',
+                    style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xff1f2937)),
+                  );
+                },
               ),
               const Text(
                 'Manage your classes and verify student attendance targets.',

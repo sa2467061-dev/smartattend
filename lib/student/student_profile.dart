@@ -74,7 +74,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
 
             // --- Change Profile Option ---
             ListTile(
-              leading: Icon(Icons.edit_outlined, color: colorScheme.onSurface.withOpacity(0.8)),
+              leading: Icon(Icons.edit_outlined, color: colorScheme.onSurface.withValues(alpha: 0.8)),
               title: Text(
                 'Change Profile',
                 style: TextStyle(fontWeight: FontWeight.w500, color: colorScheme.onSurface),
@@ -88,12 +88,12 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
               valueListenable: themeNotifier,
               builder: (context, mode, _) {
                 return SwitchListTile(
-                  secondary: Icon(Icons.dark_mode_outlined, color: colorScheme.onSurface.withOpacity(0.8)),
+                  secondary: Icon(Icons.dark_mode_outlined, color: colorScheme.onSurface.withValues(alpha: 0.8)),
                   title: Text(
                     'Dark Mode',
                     style: TextStyle(fontWeight: FontWeight.w500, color: colorScheme.onSurface),
                   ),
-                  activeColor: colorScheme.primary,
+                  activeThumbColor: colorScheme.primary,
                   value: mode == ThemeMode.dark,
                   onChanged: (bool value) {
                     themeNotifier.value = value ? ThemeMode.dark : ThemeMode.light;
@@ -117,7 +117,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                 minimumSize: const Size.fromHeight(50),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: colorScheme.error.withOpacity(0.5)),
+                  side: BorderSide(color: colorScheme.error.withValues(alpha: 0.5)),
                 ),
               ),
               icon: const Icon(Icons.logout_rounded, size: 20),

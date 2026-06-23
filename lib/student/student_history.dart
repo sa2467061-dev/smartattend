@@ -79,7 +79,7 @@ class StudentHistoryScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: index == 0 ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                    color: index == 0 ? Colors.green.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(

@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../main.dart'; // Adjust path based on your real location
 
 class LecturerProfileScreen extends StatelessWidget {
-  const LecturerProfileScreen({super.key});
+  final String? userId; // 1. Add the variable parameter field
+
+  const LecturerProfileScreen({
+    super.key, 
+    this.userId, // 2. Add it to your constructor setup
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -10,18 +17,18 @@ class LecturerProfileScreen extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
+    // Safely capture a clean local UID fallback via active instance
+    final String? effectiveUid = userId ?? FirebaseAuth.instance.currentUser?.uid;
+
     return Scaffold(
-      // Standardizes the deep light/dark page background
       backgroundColor: isDark ? const Color(0xff121212) : const Color(0xfff8f9fa),
       appBar: AppBar(
-        // Background and typography map cleanly to your AppTheme configs
         title: const Text(
           'Profile',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         centerTitle: true,
         actions: [
-          // Dynamic Dark Mode Switch Action Button
           ValueListenableBuilder<ThemeMode>(
             valueListenable: themeNotifier,
             builder: (context, mode, _) {
@@ -39,105 +46,135 @@ class LecturerProfileScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // --- Top Profile Header Block ---
-            Container(
-              color: colorScheme.surface,
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 28.0),
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 45,
-                    backgroundColor: isDark ? Colors.white24 : colorScheme.onSurface,
-                    child: const Icon(Icons.person, size: 50, color: Colors.white),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Dr. Ahmad Ibrahim',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Senior Lecturer',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isDark ? Colors.white54 : Colors.grey.shade600,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
+      body: FutureBuilder<DocumentSnapshot>(
+        future: effectiveUid != null
+            ? FirebaseFirestore.instance.collection('users').doc(effectiveUid).get()
+            : null,
+        builder: (context, snapshot) {
+          // Default fallbacks while database loads or if data is absent
+          String displayName = 'Lecturer';
+          String emailAddress = FirebaseAuth.instance.currentUser?.email ?? 'No email associated';
+          String staffId = 'N/A';
+          String facultyName = 'Faculty of Computer & Mathematical Sciences';
 
-            // --- Account Information Section ---
-            _buildSectionHeader(context, 'ACCOUNT INFORMATION'),
-            Container(
-              color: colorScheme.surface,
-              child: Column(
-                children: [
-                  _buildProfileTile(context, Icons.badge_outlined, 'Staff ID', 'STF99284'),
-                  _buildDivider(context),
-                  _buildProfileTile(context, Icons.mail_outline_rounded, 'Email', 'ahmad.ibrahim@uitm.edu.my'),
-                  _buildDivider(context),
-                  _buildProfileTile(context, Icons.business_center_outlined, 'Faculty', 'Faculty of Computer & Mathematical Sciences'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
+          if (snapshot.hasData && snapshot.data!.exists) {
+            final data = snapshot.data!.data() as Map<String, dynamic>?;
+            if (data != null) {
+              displayName = data['name'] ?? displayName;
+              emailAddress = data['email'] ?? emailAddress;
+              staffId = data['staff_id'] ?? data['id'] ?? staffId; // Adjust key to match your database field mapping
+              facultyName = data['faculty'] ?? facultyName;
+            }
+          }
 
-            // --- Preferences & Security Section ---
-            _buildSectionHeader(context, 'PREFERENCES & SECURITY'),
-            Container(
-              color: colorScheme.surface,
-              child: Column(
-                children: [
-                  _buildInteractiveTile(context, Icons.lock_outline_rounded, 'Change Password', () {}),
-                  _buildDivider(context),
-                  _buildInteractiveTile(context, Icons.notifications_none_rounded, 'Notification Settings', () {}),
-                  _buildDivider(context),
-                  _buildInteractiveTile(context, Icons.help_outline_rounded, 'Help & Support', () {}),
-                ],
-              ),
-            ),
-            const SizedBox(height: 32),
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-            // --- Log Out Action Button ---
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: SizedBox(
-                width: double.infinity,
-                child: TextButton.icon(
-                  style: TextButton.styleFrom(
-                    backgroundColor: colorScheme.errorContainer,
-                    foregroundColor: colorScheme.onErrorContainer,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: () {
-                    Navigator.pushNamedAndRemoveUntil(
-                        context, '/login', (route) => false);
-                  },
-                  icon: const Icon(Icons.logout_rounded, size: 20),
-                  label: const Text(
-                    'Log Out',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                // --- Top Profile Header Block ---
+                Container(
+                  color: colorScheme.surface,
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 28.0),
+                  child: Column(
+                    children: [
+                      CircleAvatar(
+                        radius: 45,
+                        backgroundColor: isDark ? Colors.white24 : colorScheme.onSurface,
+                        child: const Icon(Icons.person, size: 50, color: Colors.white),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        displayName,
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Senior Lecturer',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isDark ? Colors.white54 : Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
+                const SizedBox(height: 16),
+
+                // --- Account Information Section ---
+                _buildSectionHeader(context, 'ACCOUNT INFORMATION'),
+                Container(
+                  color: colorScheme.surface,
+                  child: Column(
+                    children: [
+                      _buildProfileTile(context, Icons.badge_outlined, 'Staff ID', staffId),
+                      _buildDivider(context),
+                      _buildProfileTile(context, Icons.mail_outline_rounded, 'Email', emailAddress),
+                      _buildDivider(context),
+                      _buildProfileTile(context, Icons.business_center_outlined, 'Faculty', facultyName),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // --- Preferences & Security Section ---
+                _buildSectionHeader(context, 'PREFERENCES & SECURITY'),
+                Container(
+                  color: colorScheme.surface,
+                  child: Column(
+                    children: [
+                      _buildInteractiveTile(context, Icons.lock_outline_rounded, 'Change Password', () {}),
+                      _buildDivider(context),
+                      _buildInteractiveTile(context, Icons.notifications_none_rounded, 'Notification Settings', () {}),
+                      _buildDivider(context),
+                      _buildInteractiveTile(context, Icons.help_outline_rounded, 'Help & Support', () {}),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // --- Log Out Action Button ---
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: TextButton.icon(
+                      style: TextButton.styleFrom(
+                        backgroundColor: colorScheme.errorContainer,
+                        foregroundColor: colorScheme.onErrorContainer,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () async {
+                        await FirebaseAuth.instance.signOut();
+                        if (context.mounted) {
+                          Navigator.pushNamedAndRemoveUntil(
+                              context, '/login', (route) => false);
+                        }
+                      },
+                      icon: const Icon(Icons.logout_rounded, size: 20),
+                      label: const Text(
+                        'Log Out',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 40),
+              ],
             ),
-            const SizedBox(height: 40),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

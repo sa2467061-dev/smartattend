@@ -4,7 +4,8 @@ import 'student_history.dart';
 import 'student_profile.dart';
 
 class StudentDashboard extends StatefulWidget {
-  const StudentDashboard({super.key});
+  final String? userId; // Optional parameter to pass user ID if needed
+  const StudentDashboard({super.key, this.userId});
 
   @override
   State<StudentDashboard> createState() => _StudentDashboardState();

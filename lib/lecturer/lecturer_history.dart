@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class LecturerHistoryScreen extends StatelessWidget {
   final VoidCallback onProfilePressed;
+  final String? userId; // 1. Add the variable parameter field
 
   const LecturerHistoryScreen({
     super.key,
     required this.onProfilePressed,
+    this.userId, // 2. Add it to your constructor setup
   });
 
   @override
   Widget build(BuildContext context) {
+    // Safely capture a clean local UID fallback via active Firebase Auth instance
+    final String? effectiveUid = userId ?? FirebaseAuth.instance.currentUser?.uid;
+
     return Scaffold(
       backgroundColor: const Color(0xfff8f9fa),
       // --- Consistent Top Bar Layout ---
@@ -88,7 +94,7 @@ class LecturerHistoryScreen extends StatelessWidget {
                       date: '15 June 2026',
                       time: '8:30 AM - 10:30 AM',
                       presentCount: 35,
-                      totalCount: 35, // Full attendance highlight example
+                      totalCount: 35,
                     ),
                   ],
                 ),
@@ -128,7 +134,6 @@ class LecturerHistoryScreen extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Left Side: Course Info Meta Block
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,8 +169,6 @@ class LecturerHistoryScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          
-          // Right Side: Live Count Turnout Indicator Badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(

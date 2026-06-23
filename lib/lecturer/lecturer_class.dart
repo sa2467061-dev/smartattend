@@ -1,17 +1,24 @@
 import 'package:flutter/material.dart';
 //import '../lecturer/lecturer_profile.dart'; // Ensure correct import for profile navigation
 import '../lecturer/add_class.dart';        // Imports your custom screen path
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../widgets/class_card.dart';
+import '../widgets/class_model.dart';
 
 class LecturerClassScreen extends StatelessWidget {
   final VoidCallback onProfilePressed;
-
+  final String? userId;
   const LecturerClassScreen({
     super.key,
     required this.onProfilePressed,
+    this.userId, // Optional parameter to receive user ID
   });
 
   @override
   Widget build(BuildContext context) {
+final String? effectiveUid = userId ?? FirebaseAuth.instance.currentUser?.uid;
+
     return Scaffold(
       backgroundColor: const Color(0xfff8f9fa),
       // --- Consistent Top Bar Layout ---
@@ -61,15 +68,41 @@ class LecturerClassScreen extends StatelessWidget {
                 'Manage and track your assigned courses here.',
                 style: TextStyle(color: Colors.grey, fontSize: 14),
               ),
-              const Expanded(
-                child: Center(
-                  child: Text(
-                    'No classes added yet.\nTap the + button to create a course.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey, height: 1.5),
-                  ),
-                ),
-              ),
+              // Replace your old Expanded block with this dynamic one:
+Expanded(
+  child: StreamBuilder<QuerySnapshot>(
+    stream: FirebaseFirestore.instance
+        .collection('classes')
+        .where('lect_id', isEqualTo: effectiveUid) // Filters by logged-in lecturer
+        .snapshots(),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        return const Center(
+          child: Text(
+            'No classes added yet.\nTap the + button to create a course.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey, height: 1.5),
+          ),
+        );
+      }
+
+      final classDocs = snapshot.data!.docs;
+
+      return ListView.builder(
+        itemCount: classDocs.length,
+        itemBuilder: (context, index) {
+          final data = classDocs[index].data() as Map<String, dynamic>;
+          final classInstance = ClassModel.fromFirestore(data, classDocs[index].id);
+
+          return ClassCard(classData: classInstance);
+        },
+      );
+    },
+  ),
+),
             ],
           ),
         ),
@@ -84,7 +117,8 @@ class LecturerClassScreen extends StatelessWidget {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const AddClassScreen()),
+            MaterialPageRoute(builder: (context) => AddClassScreen(userId: effectiveUid),
+            ), // Pass userId to AddClassScreen for Firestore operations
           );
         },
         child: const Icon(Icons.add, size: 28),
