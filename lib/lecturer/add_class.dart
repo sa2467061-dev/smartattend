@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Required for Clipboard functionality
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 String generateClassPin() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; 

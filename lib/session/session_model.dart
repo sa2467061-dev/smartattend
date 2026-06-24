@@ -67,13 +67,13 @@ class SessionModel {
     final timeSlot = (data['time_slot'] as Map<String, dynamic>?) ?? {};
     final geofence = (data['geofence'] as Map<String, dynamic>?) ?? {};
 
-    DateTime _toDate(dynamic value) {
+    DateTime toDate(dynamic value) {
       if (value is Timestamp) return value.toDate();
       if (value is DateTime) return value;
       return DateTime.now(); // safe fallback, should not normally hit this
     }
 
-    double _toDouble(dynamic value) {
+    double toDouble(dynamic value) {
       if (value is num) return value.toDouble();
       return 0.0;
     }
@@ -81,14 +81,14 @@ class SessionModel {
     return SessionModel(
       sesId: doc.id,
       clsId: data['cls_id'] ?? '',
-      createdAt: _toDate(data['timestamp']),
-      startTime: _toDate(timeSlot['start']),
-      endTime: _toDate(timeSlot['end']),
-      geoLat: _toDouble(geofence['lat']),
-      geoLng: _toDouble(geofence['lng']),
-      geoRadiusM: _toDouble(geofence['radius_m']),
+      createdAt: toDate(data['timestamp']),
+      startTime: toDate(timeSlot['start']),
+      endTime: toDate(timeSlot['end']),
+      geoLat: toDouble(geofence['lat']),
+      geoLng: toDouble(geofence['lng']),
+      geoRadiusM: toDouble(geofence['radius_m']),
       qrCode: data['qr_code'] ?? '',
-      qrExpire: _toDate(data['qr_expire']),
+      qrExpire: toDate(data['qr_expire']),
     );
   }
 
