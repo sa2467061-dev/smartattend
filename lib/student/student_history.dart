@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 class StudentHistoryScreen extends StatelessWidget {
   final VoidCallback? onProfilePressed; // Pass this from the parent dashboard to allow profile switching
+  final String? userId; // Receives ID passed down from login/auth workflow
 
-  const StudentHistoryScreen({super.key, this.onProfilePressed});
+  const StudentHistoryScreen({super.key, this.onProfilePressed, this.userId});
 
   @override
   Widget build(BuildContext context) {

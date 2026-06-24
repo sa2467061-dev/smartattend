@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'student_class.dart';
 import 'student_history.dart';
 import 'student_profile.dart';
 
 class StudentDashboard extends StatefulWidget {
-  final String? userId; // Optional parameter to pass user ID if needed
+  final String? userId; 
   const StudentDashboard({super.key, this.userId});
 
   @override
@@ -16,19 +18,24 @@ class _StudentDashboardState extends State<StudentDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    // Helper function to handle opening the Profile Screen seamlessly
+    // 1. Establish the clean user ID chain with an active fallback
+    final String? effectiveUid = widget.userId ?? FirebaseAuth.instance.currentUser?.uid;
+
+    // Helper function to handle passing userId straight down into the profile route context
     void openProfile() {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => const StudentProfileScreen()),
+        MaterialPageRoute(
+          builder: (context) => StudentProfileScreen(userId: effectiveUid),
+        ),
       );
     }
 
-    // Only Home, Classes, and History are managed by the bottom bar tabs now
+    // 2. Cascade down the user context variables into each functional child tab view
     final List<Widget> tabs = [
-      StudentHomeTab(onProfilePressed: openProfile), 
-      StudentClassScreen(onProfilePressed: openProfile),   // Pass to class screen top bar too
-      StudentHistoryScreen(onProfilePressed: openProfile), // Pass to history screen top bar too
+      StudentHomeTab(onProfilePressed: openProfile, userId: effectiveUid), 
+      StudentClassScreen(onProfilePressed: openProfile, userId: effectiveUid),   
+      StudentHistoryScreen(onProfilePressed: openProfile, userId: effectiveUid), 
     ];
 
     return Scaffold(
@@ -64,20 +71,21 @@ class _StudentDashboardState extends State<StudentDashboard> {
             activeIcon: Icon(Icons.history_rounded),
             label: 'History',
           ),
-          // Profile item removed from here entirely!
         ],
       ),
     );
   }
 }
 
-// Home View Tab
+// --- Home View Tab ---
 class StudentHomeTab extends StatelessWidget {
   final VoidCallback onProfilePressed;
+  final String? userId; // Add tracking variable here
 
   const StudentHomeTab({
     super.key,
     required this.onProfilePressed,
+    this.userId,
   });
 
   @override
@@ -102,7 +110,7 @@ class StudentHomeTab extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: GestureDetector(
-              onTap: onProfilePressed, // Opens profile fullscreen
+              onTap: onProfilePressed, 
               child: const CircleAvatar(
                 radius: 18,
                 backgroundColor: Color(0xff004ce6),
@@ -113,11 +121,48 @@ class StudentHomeTab extends StatelessWidget {
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 10),
+            // 3. Dynamic FutureBuilder Greeting block pulling from Firestore
+            FutureBuilder<DocumentSnapshot>(
+              future: userId != null 
+                  ? FirebaseFirestore.instance.collection('users').doc(userId).get()
+                  : null,
+              builder: (context, snapshot) {
+                String greetingName = 'Student';
+                
+                if (snapshot.hasData && snapshot.data!.exists) {
+                  final data = snapshot.data!.data() as Map<String, dynamic>?;
+                  if (data != null) {
+                    greetingName = data['name'] ?? greetingName;
+                  }
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Welcome back,',
+                      style: TextStyle(fontSize: 16, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      greetingName,
+                      style: const TextStyle(
+                        fontSize: 26, 
+                        fontWeight: FontWeight.bold, 
+                        color: Color(0xff111827),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 28),
             _buildSessionPlaceholder('Current Session', Icons.play_circle_outline),
             const SizedBox(height: 12),
             _buildSessionPlaceholder('Next Session', Icons.update),
@@ -133,19 +178,19 @@ class StudentHomeTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
+        color: Colors.grey.shade500.withAlpha(10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Row(
         children: [
-          Icon(icon, color: Colors.grey.shade600),
-          const SizedBox(width: 12),
+          Icon(icon, color: Colors.grey.shade600, size: 22),
+          const SizedBox(width: 14),
           Text(
             title,
             style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
               color: Colors.grey.shade700,
             ),
           ),

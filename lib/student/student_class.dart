@@ -1,222 +1,198 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../widgets/class_model.dart';
 import '../widgets/class_card.dart';
+import '../widgets/class_model.dart';
+
 
 class StudentClassScreen extends StatefulWidget {
-  final VoidCallback? onProfilePressed;
+  final VoidCallback onProfilePressed;
+  final String? userId;
 
-  const StudentClassScreen({super.key, this.onProfilePressed});
+  const StudentClassScreen({
+    super.key,
+    required this.onProfilePressed,
+    this.userId,
+  });
 
   @override
   State<StudentClassScreen> createState() => _StudentClassScreenState();
 }
 
 class _StudentClassScreenState extends State<StudentClassScreen> {
-  int _selectedJoinType = 0; 
-  final TextEditingController _inputController = TextEditingController();
+  final TextEditingController _codeController = TextEditingController();
   bool _isJoining = false;
 
-  // Cache user data locally to minimize frequent database fetches
-  String? _myMatrixNo;
-
   @override
-  void initState() {
-    super.initState();
-    _fetchStudentProfile();
+  void dispose() {
+    _codeController.dispose();
+    super.dispose();
   }
 
-  // Fetch the logged-in student's matrix number from their user document
-  Future<void> _fetchStudentProfile() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid != null) {
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-      if (userDoc.exists && mounted) {
-        setState(() {
-          _myMatrixNo = userDoc.data()?['matrix_no'];
-        });
-      }
-    }
-  }
-
-  // Pure logic utility to extract code string from raw input strings
-  String _extractCode(String input) {
-    if (_selectedJoinType == 0) {
-      return input.trim().toUpperCase(); // PIN Input is clean
-    } else {
-      // RegEx searching for exactly 6 alphanumeric characters at the end of a link query parameters
-      final RegExp regExp = RegExp(r'code=([A-Z0-9]{6})', caseSensitive: false);
-      final match = regExp.firstMatch(input);
-      if (match != null) {
-        return match.group(1)!.toUpperCase();
-      }
-      // Fallback: if they just pass a clean 6 digit string to the link field anyway
-      return input.trim().toUpperCase();
-    }
-  }
-
-  Future<void> _joinClass(StateSetter setModalState) async {
-    final rawInput = _inputController.text.trim();
-    if (rawInput.isEmpty || _myMatrixNo == null) {
+  // Logic block to handle linking a student to a class via its distinct code
+  Future<void> _joinClassByCode() async {
+    if (widget.userId == null) return;
+    
+    final code = _codeController.text.trim();
+    if (code.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Verification failed. Try again.')),
+        const SnackBar(content: Text('Please enter a valid class code.')),
       );
       return;
     }
 
-    final targetCode = _extractCode(rawInput);
-
-    if (targetCode.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid code pattern detected. Must be 6 characters.')),
-      );
-      return;
-    }
-
-    setModalState(() => _isJoining = true);
+    setState(() => _isJoining = true);
 
     try {
-      final query = await FirebaseFirestore.instance
+      // Find the class document matching the provided class code
+      final classQuery = await FirebaseFirestore.instance
           .collection('classes')
-          .where('class_code', isEqualTo: targetCode)
+          .where('class_code', isEqualTo: code)
           .limit(1)
           .get();
 
-      if (query.docs.isEmpty) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Class not found!')));
-        return;
-      }
+      if (!mounted) return;
 
-      final classDoc = query.docs.first;
-      final List enrolled = classDoc['enrolled_stud'] ?? [];
-
-      if (enrolled.contains(_myMatrixNo)) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are already enrolled!')));
-        return;
-      }
-
-      // Atomic Update Transaction block
-      await classDoc.reference.update({
-        'enrolled_stud': FieldValue.arrayUnion([_myMatrixNo]),
-        'student_count': FieldValue.increment(1),
-      });
-
-      if (mounted) {
+      if (classQuery.docs.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Successfully joined class!'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('Class code not found. Check with your lecturer.')),
         );
-        _inputController.clear();
-        Navigator.pop(context); // Dismiss modal sheet
+        setState(() => _isJoining = false);
+        return;
       }
+
+      final classDoc = classQuery.docs.first;
+
+     // Fetch the student's matrix number from their user document first
+final userDoc = await FirebaseFirestore.instance
+    .collection('users')
+    .doc(widget.userId) // Their Firebase Auth UID
+    .get();
+
+if (!userDoc.exists) {
+  throw 'User document profile not found.';
+}
+
+final String studentMatrixNo = userDoc.get('matrix_no') ?? '';
+if (studentMatrixNo.isEmpty) {
+  throw 'Your profile is missing a matrix number.';
+}
+
+// Then update the array using the matrix number instead of the UID
+await classDoc.reference.update({
+  'enrolled_stud': FieldValue.arrayUnion([studentMatrixNo]),
+});
+
+      if (!mounted) return;
+      
+      // Cleanly flip the state back before popping the modal overlay sheet
+      setState(() => _isJoining = false);
+      _codeController.clear();
+      
+      Navigator.pop(context); // Dismiss the sheet dialog block
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Successfully joined ${classDoc.get('name') ?? 'Class'}!')),
+      );
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to join class: $e')),
+      );
     } finally {
-      setModalState(() => _isJoining = false);
+      if (mounted) setState(() => _isJoining = false);
     }
   }
 
-  void _showAddClassBottomSheet() {
+  // Pop up an entry panel dialog to capture user input safely
+  void _showJoinClassDialog() {
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true, 
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                top: 24, left: 24, right: 24,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text('Add New Class', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 20),
-                  
-                  Center(
-                    child: ToggleButtons(
-                      direction: Axis.horizontal,
-                      onPressed: (int index) {
-                        setModalState(() {
-                          _selectedJoinType = index;
-                          _inputController.clear();
-                        });
-                      },
-                      borderRadius: const BorderRadius.all(Radius.circular(8)),
-                      selectedBorderColor: const Color(0xff004ce6),
-                      selectedColor: Colors.white,
-                      fillColor: const Color(0xff004ce6),
-                      color: Colors.grey.shade700,
-                      constraints: BoxConstraints(
-                        minWidth: (MediaQuery.of(context).size.width - 64) / 2,
-                        minHeight: 40.0,
-                      ),
-                      isSelected: [_selectedJoinType == 0, _selectedJoinType == 1],
-                      children: const [
-                        Text('Use PIN', style: TextStyle(fontWeight: FontWeight.w600)),
-                        Text('Use Link', style: TextStyle(fontWeight: FontWeight.w600)),
-                      ],
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              left: 24,
+              right: 24,
+              top: 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Join Class',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xff111827)),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Ask your lecturer for the class code to add it to your profile dashboard list.',
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: _codeController,
+                  enabled: !_isJoining, // Disables text field while server call processing executes
+                  decoration: InputDecoration(
+                    hintText: 'e.g. ITS652',
+                    filled: true,
+                    fillColor: _isJoining ? const Color(0xffe9ecef) : const Color(0xfff8f9fa),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade200),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  
-                  TextField(
-                    controller: _inputController,
-                    keyboardType: _selectedJoinType == 0 ? TextInputType.text : TextInputType.url,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: InputDecoration(
-                      labelText: _selectedJoinType == 0 ? 'Enter Class PIN' : 'Enter Class Invite Link',
-                      hintText: _selectedJoinType == 0 ? 'e.g., XF89WZ' : 'https://smartattend.com/join?code=XF89WZ',
-                      prefixIcon: Icon(_selectedJoinType == 0 ? Icons.pin : Icons.link),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Color(0xff004ce6), width: 2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  ElevatedButton(
-                    onPressed: _isJoining ? null : () => _joinClass(setModalState),
+                  textCapitalization: TextCapitalization.characters,
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xff004ce6),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
                     ),
-                    child: _isJoining 
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('Join Class', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    onPressed: _isJoining ? null : () async {
+                      // Uses sequential evaluation to match outer context handling
+                      await _joinClassByCode();
+                    },
+                    child: _isJoining
+                        ? const SizedBox(
+                            height: 20, 
+                            width: 20, 
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : const Text('Add Class', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
-  }
-
-  @override
-  void dispose() {
-    _inputController.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xfff8f9fa),
       appBar: AppBar(
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0.5,
         titleSpacing: 16,
-        automaticallyImplyLeading: false,
         title: Row(
           children: const [
             Icon(Icons.domain_verification, color: Color(0xff004ce6), size: 28),
@@ -241,50 +217,132 @@ class _StudentClassScreenState extends State<StudentClassScreen> {
           ),
         ],
       ),
-      // Live Stream of enrolled courses matching this specific student profile instance array list data trace
-      body: _myMatrixNo == null 
-        ? const Center(child: CircularProgressIndicator(color: Color(0xff004ce6)))
-        : StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('classes')
-                .where('enrolled_stud', arrayContains: _myMatrixNo)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return const Center(
-                  child: Text(
-                    'No classes joined yet.\nTap the Add Class button to enter a course.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey, height: 1.5),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Enrolled Classes',
+                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xff111827)),
                   ),
-                );
-              }
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline, color: Color(0xff004ce6), size: 28),
+                    onPressed: _showJoinClassDialog,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'View active tracks and your geofenced enrollment codes.',
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+              const SizedBox(height: 24),
+              
+              Expanded(
+                child: widget.userId == null
+                    ? const Center(child: Text('User not verified.'))
+                    : StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('classes')
+                            .where('enrolled_stud', arrayContains: widget.userId)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.class_outlined, size: 48, color: Colors.grey.shade400),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'No enrolled classes yet.',
+                                    style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
 
-              final classDocs = snapshot.data!.docs;
+                         return ListView.separated(
+  itemCount: snapshot.data!.docs.length,
+  separatorBuilder: (context, index) => const SizedBox(height: 14),
+  itemBuilder: (context, index) {
+    final doc = snapshot.data!.docs[index];
+    
+    // 1. Convert the Firestore document snapshot safely into your new ClassModel
+    final classModel = ClassModel.fromFirestore(doc);
 
-              return ListView.builder(
-                padding: const EdgeInsets.all(16.0),
-                itemCount: classDocs.length,
-                itemBuilder: (context, index) {
-                  final data = classDocs[index].data() as Map<String, dynamic>;
-                  final classModelInstance = ClassModel.fromFirestore(data, classDocs[index].id);
-
-                  // Using the shared reusable generic container design architecture
-                  return ClassCard(classData: classModelInstance);
-                },
-              );
-            },
+    // 2. Return your dedicated ClassCard component and pass the model data into it
+    return ClassCard(classData: classModel);
+  },
+);
+                        },
+                      ),
+              ),
+            ],
           ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAddClassBottomSheet,
-        backgroundColor: const Color(0xff004ce6),
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Class'),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClassCard({
+    required String className,
+    required String classCode,
+    required String lecturerName,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(8),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  classCode,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xff004ce6)),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  className,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xff111827)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.person_outline, size: 14, color: Colors.grey),
+                    const SizedBox(width: 6),
+                    Text(lecturerName, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.grey),
+        ],
       ),
     );
   }

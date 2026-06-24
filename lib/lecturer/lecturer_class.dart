@@ -95,7 +95,7 @@ Expanded(
         itemCount: classDocs.length,
         itemBuilder: (context, index) {
           final data = classDocs[index].data() as Map<String, dynamic>;
-          final classInstance = ClassModel.fromFirestore(data, classDocs[index].id);
+          final classInstance = ClassModel.fromFirestore(classDocs[index]);
 
           return ClassCard(classData: classInstance);
         },
