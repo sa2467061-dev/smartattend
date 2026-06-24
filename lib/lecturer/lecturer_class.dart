@@ -97,7 +97,7 @@ Expanded(
           final data = classDocs[index].data() as Map<String, dynamic>;
           final classInstance = ClassModel.fromFirestore(classDocs[index]);
 
-          return ClassCard(classData: classInstance);
+          return ClassCard(classData: classInstance,userRole: 'lecturer',);
         },
       );
     },

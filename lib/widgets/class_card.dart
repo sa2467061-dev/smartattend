@@ -5,8 +5,14 @@ import 'class_detail.dart';
 
 class ClassCard extends StatelessWidget {
   final ClassModel classData;
+  final String userRole; // 👈 Add this field variable
 
-  const ClassCard({super.key, required this.classData});
+  // 👈 Require it here in the constructor
+  const ClassCard({
+    super.key, 
+    required this.classData, 
+    required this.userRole, 
+  });
 
   // Helper method to fetch the lecturer's name using lectId
   Future<String> _getLecturerName(String lectId) async {
@@ -33,18 +39,17 @@ class ClassCard extends StatelessWidget {
       color: Colors.white,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-       // Inside class_card.dart
-onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => ClassDetailScreen(
-        classData: classData,
-        userRole: 'lecturer', // Or 'student' dynamically parsed depending on which dashboard layout holds the card
-      ),
-    ),
-  );
-},
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ClassDetailScreen(
+                classData: classData,
+                userRole: userRole, // 👈 Pass the dynamic variable here!
+              ),
+            ),
+          );
+        },
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(

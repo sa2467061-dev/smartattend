@@ -7,6 +7,8 @@ environment:
   sdk: ^3.0.0
 
 dependencies:
+  google_maps_flutter: any
+  geolocator: ^14.0.3
   cloud_firestore: any
   firebase_analytics: any
   firebase_core: any

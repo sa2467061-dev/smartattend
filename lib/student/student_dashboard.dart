@@ -31,48 +31,67 @@ class _StudentDashboardState extends State<StudentDashboard> {
       );
     }
 
-    // 2. Cascade down the user context variables into each functional child tab view
-    final List<Widget> tabs = [
-      StudentHomeTab(onProfilePressed: openProfile, userId: effectiveUid), 
-      StudentClassScreen(onProfilePressed: openProfile, userId: effectiveUid),   
-      StudentHistoryScreen(onProfilePressed: openProfile, userId: effectiveUid), 
-    ];
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance.collection('users').doc(effectiveUid).get(),
+      builder: (context, snapshot) {
+        // Show a loading screen while fetching user profile details (like matrix number)
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator(color: Color(0xff004ce6))),
+          );
+        }
 
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: tabs,
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xff004ce6), // Student Theme Blue
-        unselectedItemColor: Colors.grey.shade500,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-        unselectedLabelStyle: const TextStyle(fontSize: 12),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_outlined),
-            activeIcon: Icon(Icons.dashboard),
-            label: 'Home',
+        if (snapshot.hasError || !snapshot.hasData || !snapshot.data!.exists) {
+          return const Scaffold(
+            body: Center(child: Text('Error loading user profile.')),
+          );
+        }
+
+
+        // 2. Cascade down variables including the fixed matrixNo parameters
+        final List<Widget> tabs = [
+          StudentHomeTab(onProfilePressed: openProfile, userId: effectiveUid), 
+          StudentClassScreen(onProfilePressed: openProfile, userId: effectiveUid ?? ''), // ✅ Matrix number passed safely!
+          StudentHistoryScreen(onProfilePressed: openProfile, userId: effectiveUid), 
+        ];
+
+        return Scaffold(
+          body: IndexedStack(
+            index: _currentIndex,
+            children: tabs,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.class_outlined),
-            activeIcon: Icon(Icons.class_),
-            label: 'Classes',
+          bottomNavigationBar: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            type: BottomNavigationBarType.fixed,
+            selectedItemColor: const Color(0xff004ce6), // Student Theme Blue
+            unselectedItemColor: Colors.grey.shade500,
+            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+            unselectedLabelStyle: const TextStyle(fontSize: 12),
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.dashboard_outlined),
+                activeIcon: Icon(Icons.dashboard),
+                label: 'Home',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.class_outlined),
+                activeIcon: Icon(Icons.class_),
+                label: 'Classes',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.history_toggle_off_rounded),
+                activeIcon: Icon(Icons.history_rounded),
+                label: 'History',
+              ),
+            ],
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history_toggle_off_rounded),
-            activeIcon: Icon(Icons.history_rounded),
-            label: 'History',
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -80,7 +99,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
 // --- Home View Tab ---
 class StudentHomeTab extends StatelessWidget {
   final VoidCallback onProfilePressed;
-  final String? userId; // Add tracking variable here
+  final String? userId; 
 
   const StudentHomeTab({
     super.key,
@@ -125,7 +144,6 @@ class StudentHomeTab extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 3. Dynamic FutureBuilder Greeting block pulling from Firestore
             FutureBuilder<DocumentSnapshot>(
               future: userId != null 
                   ? FirebaseFirestore.instance.collection('users').doc(userId).get()

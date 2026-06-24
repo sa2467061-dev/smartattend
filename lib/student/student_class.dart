@@ -3,15 +3,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/class_card.dart';
 import '../widgets/class_model.dart';
 
-
 class StudentClassScreen extends StatefulWidget {
   final VoidCallback onProfilePressed;
-  final String? userId;
+  final String userId; // Made required since we must have it to fetch profile data
 
   const StudentClassScreen({
     super.key,
     required this.onProfilePressed,
-    this.userId,
+    required this.userId, // Pass this from dashboard
   });
 
   @override
@@ -21,6 +20,7 @@ class StudentClassScreen extends StatefulWidget {
 class _StudentClassScreenState extends State<StudentClassScreen> {
   final TextEditingController _codeController = TextEditingController();
   bool _isJoining = false;
+  String? _fetchedMatrixNo; // Cache the matrix number once loaded (used for display/stream only)
 
   @override
   void dispose() {
@@ -28,10 +28,8 @@ class _StudentClassScreenState extends State<StudentClassScreen> {
     super.dispose();
   }
 
-  // Logic block to handle linking a student to a class via its distinct code
+  // Handles linking a student to a class via its unique room code
   Future<void> _joinClassByCode() async {
-    if (widget.userId == null) return;
-    
     final code = _codeController.text.trim();
     if (code.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -43,7 +41,34 @@ class _StudentClassScreenState extends State<StudentClassScreen> {
     setState(() => _isJoining = true);
 
     try {
-      // Find the class document matching the provided class code
+      // DEBUG: confirm exactly which document we're reading
+      debugPrint('[JOIN] widget.userId = "${widget.userId}"');
+
+      // Fetch matrix number directly, instead of relying on cached state
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
+          .get();
+
+      // DEBUG: confirm the doc exists and dump its raw data
+      debugPrint('[JOIN] userDoc.exists = ${userDoc.exists}');
+      debugPrint('[JOIN] userDoc.data() = ${userDoc.data()}');
+
+      if (!userDoc.exists) {
+        throw 'No user profile found for this account (userId: ${widget.userId}). '
+            'Check that the Firestore "users" document ID matches the Auth UID.';
+      }
+
+      final userData = userDoc.data();
+      final String studentMatrixNo = (userData?['matrix_no'] ?? '').toString().trim();
+
+      debugPrint('[JOIN] studentMatrixNo = "$studentMatrixNo"');
+
+      if (studentMatrixNo.isEmpty) {
+        throw 'Your profile is missing a matrix number. '
+            'Check the "matrix_no" field on document users/${widget.userId} in Firestore.';
+      }
+
       final classQuery = await FirebaseFirestore.instance
           .collection('classes')
           .where('class_code', isEqualTo: code)
@@ -62,47 +87,32 @@ class _StudentClassScreenState extends State<StudentClassScreen> {
 
       final classDoc = classQuery.docs.first;
 
-     // Fetch the student's matrix number from their user document first
-final userDoc = await FirebaseFirestore.instance
-    .collection('users')
-    .doc(widget.userId) // Their Firebase Auth UID
-    .get();
-
-if (!userDoc.exists) {
-  throw 'User document profile not found.';
-}
-
-final String studentMatrixNo = userDoc.get('matrix_no') ?? '';
-if (studentMatrixNo.isEmpty) {
-  throw 'Your profile is missing a matrix number.';
-}
-
-// Then update the array using the matrix number instead of the UID
-await classDoc.reference.update({
-  'enrolled_stud': FieldValue.arrayUnion([studentMatrixNo]),
-});
+      await classDoc.reference.update({
+        'enrolled_stud': FieldValue.arrayUnion([studentMatrixNo]),
+      });
 
       if (!mounted) return;
-      
-      // Cleanly flip the state back before popping the modal overlay sheet
+
       setState(() => _isJoining = false);
       _codeController.clear();
-      
-      Navigator.pop(context); // Dismiss the sheet dialog block
-      
+      Navigator.pop(context); // Dismiss the modal sheet overlay
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Successfully joined ${classDoc.get('name') ?? 'Class'}!')),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to join class: $e')),
-      );
+      debugPrint('[JOIN] ERROR: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to join class: $e')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isJoining = false);
     }
   }
 
-  // Pop up an entry panel dialog to capture user input safely
+  // Displays input pane to capture alphanumeric course codes safely
   void _showJoinClassDialog() {
     showModalBottomSheet(
       context: context,
@@ -136,7 +146,7 @@ await classDoc.reference.update({
                 const SizedBox(height: 20),
                 TextField(
                   controller: _codeController,
-                  enabled: !_isJoining, // Disables text field while server call processing executes
+                  enabled: !_isJoining,
                   decoration: InputDecoration(
                     hintText: 'e.g. ITS652',
                     filled: true,
@@ -164,7 +174,6 @@ await classDoc.reference.update({
                       elevation: 0,
                     ),
                     onPressed: _isJoining ? null : () async {
-                      // Uses sequential evaluation to match outer context handling
                       await _joinClassByCode();
                     },
                     child: _isJoining
@@ -244,105 +253,81 @@ await classDoc.reference.update({
               const SizedBox(height: 24),
               
               Expanded(
-                child: widget.userId == null
-                    ? const Center(child: Text('User not verified.'))
-                    : StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('classes')
-                            .where('enrolled_stud', arrayContains: widget.userId)
-                            .snapshots(),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const Center(child: CircularProgressIndicator());
-                          }
-                          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                            return Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.class_outlined, size: 48, color: Colors.grey.shade400),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    'No enrolled classes yet.',
-                                    style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
+                // 1. First fetch the student's personal info to grab their matrix number
+                child: FutureBuilder<DocumentSnapshot>(
+                  future: FirebaseFirestore.instance.collection('users').doc(widget.userId).get(),
+                  builder: (context, userSnapshot) {
+                    if (userSnapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (userSnapshot.hasError || !userSnapshot.hasData || !userSnapshot.data!.exists) {
+                      // DEBUG: this fires if the doc ID (widget.userId) doesn't exist in 'users'
+                      debugPrint('[BUILD] No user doc found for userId="${widget.userId}"');
+                      return Center(
+                        child: Text(
+                          'Failed to load user profile.\n(userId: ${widget.userId})',
+                          textAlign: TextAlign.center,
+                        ),
+                      );
+                    }
 
-                         return ListView.separated(
-  itemCount: snapshot.data!.docs.length,
-  separatorBuilder: (context, index) => const SizedBox(height: 14),
-  itemBuilder: (context, index) {
-    final doc = snapshot.data!.docs[index];
-    
-    // 1. Convert the Firestore document snapshot safely into your new ClassModel
-    final classModel = ClassModel.fromFirestore(doc);
+                    final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+                    debugPrint('[BUILD] userData = $userData');
 
-    // 2. Return your dedicated ClassCard component and pass the model data into it
-    return ClassCard(classData: classModel);
-  },
-);
-                        },
-                      ),
+                    _fetchedMatrixNo = (userData?['matrix_no'] ?? '').toString().trim();
+
+                    if (_fetchedMatrixNo!.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'Matrix number not found in profile.\n(userId: ${widget.userId})',
+                          textAlign: TextAlign.center,
+                        ),
+                      );
+                    }
+
+                    // 2. Once we have the matrix number, look up the classes they belong to
+                    return StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('classes')
+                          .where('enrolled_stud', arrayContains: _fetchedMatrixNo)
+                          .snapshots(),
+                      builder: (context, classSnapshot) {
+                        if (classSnapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        if (!classSnapshot.hasData || classSnapshot.data!.docs.isEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.class_outlined, size: 48, color: Colors.grey.shade400),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No enrolled classes yet.',
+                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        return ListView.separated(
+                          itemCount: classSnapshot.data!.docs.length,
+                          separatorBuilder: (context, index) => const SizedBox(height: 14),
+                          itemBuilder: (context, index) {
+                            final doc = classSnapshot.data!.docs[index];
+                            final classModel = ClassModel.fromFirestore(doc);
+                            return ClassCard(classData: classModel, userRole: 'student');
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildClassCard({
-    required String className,
-    required String classCode,
-    required String lecturerName,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(8),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  classCode,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xff004ce6)),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  className,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xff111827)),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.person_outline, size: 14, color: Colors.grey),
-                    const SizedBox(width: 6),
-                    Text(lecturerName, style: const TextStyle(fontSize: 13, color: Colors.grey)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.grey),
-        ],
       ),
     );
   }

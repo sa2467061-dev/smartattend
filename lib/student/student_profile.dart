@@ -47,7 +47,7 @@ class StudentProfileScreen extends StatelessWidget {
               studentName = data['name'] ?? studentName;
               emailAddress = data['email'] ?? emailAddress;
               // Checks database naming pattern metrics dynamically
-              studentId = data['student_id'] ?? data['id'] ?? studentId;
+              studentId = data['matrix_no'] ?? data['id'] ?? studentId;
               facultyName = data['faculty'] ?? facultyName;
             }
           }
