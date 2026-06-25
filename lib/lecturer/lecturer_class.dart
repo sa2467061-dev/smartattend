@@ -17,7 +17,7 @@ class LecturerClassScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-final String? effectiveUid = userId ?? FirebaseAuth.instance.currentUser?.uid;
+    final String? effectiveUid = userId ?? FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
       backgroundColor: const Color(0xfff8f9fa),
@@ -51,8 +51,8 @@ final String? effectiveUid = userId ?? FirebaseAuth.instance.currentUser?.uid;
           ),
         ],
       ),
-      
-      // --- Main View Content Placeholder ---
+
+      // --- Main View Content ---
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -68,41 +68,43 @@ final String? effectiveUid = userId ?? FirebaseAuth.instance.currentUser?.uid;
                 'Manage and track your assigned courses here.',
                 style: TextStyle(color: Colors.grey, fontSize: 14),
               ),
-              // Replace your old Expanded block with this dynamic one:
-Expanded(
-  child: StreamBuilder<QuerySnapshot>(
-    stream: FirebaseFirestore.instance
-        .collection('classes')
-        .where('lect_id', isEqualTo: effectiveUid) // Filters by logged-in lecturer
-        .snapshots(),
-    builder: (context, snapshot) {
-      if (snapshot.connectionState == ConnectionState.waiting) {
-        return const Center(child: CircularProgressIndicator());
-      }
-      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-        return const Center(
-          child: Text(
-            'No classes added yet.\nTap the + button to create a course.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey, height: 1.5),
-          ),
-        );
-      }
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('classes')
+                      .where('lect_id', isEqualTo: effectiveUid) // Filters by logged-in lecturer
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return const Center(
+                        child: Text(
+                          'No classes added yet.\nTap the + button to create a course.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey, height: 1.5),
+                        ),
+                      );
+                    }
 
-      final classDocs = snapshot.data!.docs;
+                    final classDocs = snapshot.data!.docs;
 
-      return ListView.builder(
-        itemCount: classDocs.length,
-        itemBuilder: (context, index) {
-          final data = classDocs[index].data() as Map<String, dynamic>;
-          final classInstance = ClassModel.fromFirestore(classDocs[index]);
+                    return ListView.builder(
+                      itemCount: classDocs.length,
+                      itemBuilder: (context, index) {
+                        final classInstance = ClassModel.fromFirestore(classDocs[index]);
 
-          return ClassCard(classData: classInstance,userRole: 'lecturer',);
-        },
-      );
-    },
-  ),
-),
+                        return ClassCard(
+                          classData: classInstance,
+                          userRole: 'lecturer',
+                          userId: effectiveUid ?? '',
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
             ],
           ),
         ),
@@ -117,7 +119,8 @@ Expanded(
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => AddClassScreen(userId: effectiveUid),
+            MaterialPageRoute(
+              builder: (context) => AddClassScreen(userId: effectiveUid),
             ), // Pass userId to AddClassScreen for Firestore operations
           );
         },

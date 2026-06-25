@@ -5,13 +5,14 @@ import 'class_detail.dart';
 
 class ClassCard extends StatelessWidget {
   final ClassModel classData;
-  final String userRole; // 👈 Add this field variable
+  final String userRole;
+  final String userId; // matrix number (student) or uid (lecturer)
 
-  // 👈 Require it here in the constructor
   const ClassCard({
-    super.key, 
-    required this.classData, 
-    required this.userRole, 
+    super.key,
+    required this.classData,
+    required this.userRole,
+    required this.userId,
   });
 
   // Helper method to fetch the lecturer's name using lectId
@@ -45,7 +46,8 @@ class ClassCard extends StatelessWidget {
             MaterialPageRoute(
               builder: (context) => ClassDetailScreen(
                 classData: classData,
-                userRole: userRole, // 👈 Pass the dynamic variable here!
+                userRole: userRole,
+                userId: userId, // 👈 now passed through
               ),
             ),
           );

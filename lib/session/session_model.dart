@@ -16,6 +16,7 @@ class SessionModel {
   final double geoLat;
   final double geoLng;
   final double geoRadiusM; // radius in meters
+  final String locationName; // human-readable label, e.g. "Room CS-204"
   final String qrCode; // unique code embedded in the generated QR
   final DateTime qrExpire; // when the QR code stops being valid
 
@@ -28,6 +29,7 @@ class SessionModel {
     required this.geoLat,
     required this.geoLng,
     required this.geoRadiusM,
+    required this.locationName,
     required this.qrCode,
     required this.qrExpire,
   });
@@ -67,13 +69,13 @@ class SessionModel {
     final timeSlot = (data['time_slot'] as Map<String, dynamic>?) ?? {};
     final geofence = (data['geofence'] as Map<String, dynamic>?) ?? {};
 
-    DateTime toDate(dynamic value) {
+    DateTime _toDate(dynamic value) {
       if (value is Timestamp) return value.toDate();
       if (value is DateTime) return value;
       return DateTime.now(); // safe fallback, should not normally hit this
     }
 
-    double toDouble(dynamic value) {
+    double _toDouble(dynamic value) {
       if (value is num) return value.toDouble();
       return 0.0;
     }
@@ -81,14 +83,15 @@ class SessionModel {
     return SessionModel(
       sesId: doc.id,
       clsId: data['cls_id'] ?? '',
-      createdAt: toDate(data['timestamp']),
-      startTime: toDate(timeSlot['start']),
-      endTime: toDate(timeSlot['end']),
-      geoLat: toDouble(geofence['lat']),
-      geoLng: toDouble(geofence['lng']),
-      geoRadiusM: toDouble(geofence['radius_m']),
+      createdAt: _toDate(data['timestamp']),
+      startTime: _toDate(timeSlot['start']),
+      endTime: _toDate(timeSlot['end']),
+      geoLat: _toDouble(geofence['lat']),
+      geoLng: _toDouble(geofence['lng']),
+      geoRadiusM: _toDouble(geofence['radius_m']),
+      locationName: data['location_name'] ?? '',
       qrCode: data['qr_code'] ?? '',
-      qrExpire: toDate(data['qr_expire']),
+      qrExpire: _toDate(data['qr_expire']),
     );
   }
 
@@ -107,6 +110,7 @@ class SessionModel {
         'lng': geoLng,
         'radius_m': geoRadiusM,
       },
+      'location_name': locationName,
       'qr_code': qrCode,
       'qr_expire': Timestamp.fromDate(qrExpire),
     };

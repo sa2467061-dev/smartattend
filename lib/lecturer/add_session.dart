@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
-//import '../session/attendance_model.dart';
 import '../session/session_model.dart';
 
 /// Bottom sheet / form that lets a lecturer create a new session for a class.
@@ -30,6 +29,7 @@ class _AddSessionSheetState extends State<AddSessionSheet> {
 
   LatLng? _pinLocation;
   double _radiusM = 50; // default geofence radius
+  final TextEditingController _locationNameController = TextEditingController();
   GoogleMapController? _mapController;
 
   bool _isLoadingDefaultLocation = true;
@@ -42,6 +42,12 @@ class _AddSessionSheetState extends State<AddSessionSheet> {
   void initState() {
     super.initState();
     _loadDefaultPin();
+  }
+
+  @override
+  void dispose() {
+    _locationNameController.dispose();
+    super.dispose();
   }
 
   // Pre-fill the map pin with the class's most recent session location,
@@ -60,6 +66,7 @@ class _AddSessionSheetState extends State<AddSessionSheet> {
         setState(() {
           _pinLocation = LatLng(lastSession.geoLat, lastSession.geoLng);
           _radiusM = lastSession.geoRadiusM == 0 ? 50 : lastSession.geoRadiusM;
+          _locationNameController.text = lastSession.locationName;
           _isLoadingDefaultLocation = false;
         });
         return;
@@ -137,6 +144,14 @@ class _AddSessionSheetState extends State<AddSessionSheet> {
       return;
     }
 
+    final locationName = _locationNameController.text.trim();
+    if (locationName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a classroom/location name.')),
+      );
+      return;
+    }
+
     final startDateTime = _combine(_selectedDate, _startTime);
     final endDateTime = _combine(_selectedDate, _endTime);
 
@@ -173,6 +188,7 @@ class _AddSessionSheetState extends State<AddSessionSheet> {
         geoLat: _pinLocation!.latitude,
         geoLng: _pinLocation!.longitude,
         geoRadiusM: _radiusM,
+        locationName: locationName,
         qrCode: _generateQrCode(),
         qrExpire: endDateTime, // QR valid for the whole session window
       );
@@ -280,6 +296,27 @@ class _AddSessionSheetState extends State<AddSessionSheet> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 20),
+
+                _buildLabel('Classroom / Location Name'),
+                TextField(
+                  controller: _locationNameController,
+                  decoration: InputDecoration(
+                    hintText: 'e.g. Room CS-204, Lab 3',
+                    filled: true,
+                    fillColor: const Color(0xfff8f9fa),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  ),
+                  textCapitalization: TextCapitalization.words,
                 ),
                 const SizedBox(height: 20),
 

@@ -4,9 +4,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../lecturer/lecturer_class.dart';
 import '../lecturer/lecturer_history.dart';
 import '../lecturer/lecturer_profile.dart';
+import '../session/session_query_helper.dart';
+import '../session/current_session_card.dart';
+import '../session/next_session_card.dart';
+import '../session/past_session_card.dart';
 
 class LecturerDashboard extends StatefulWidget {
-  final String? userId; // Receives ID passed down from login/auth workflow
+  final String? userId;
   const LecturerDashboard({super.key, this.userId});
 
   @override
@@ -18,10 +22,8 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    // Safely pull from parameter injection or fallback directly to active FirebaseAuth instance
     final String? effectiveUid = widget.userId ?? FirebaseAuth.instance.currentUser?.uid;
 
-    // Helper function to handle opening the Lecturer Profile Screen
     void openProfile() {
       Navigator.push(
         context,
@@ -29,62 +31,115 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
       );
     }
 
-    // Tabs configuration containing Home, Classes, and History
-    final List<Widget> tabs = [
-      LecturerHomeTab(onProfilePressed: openProfile, userId: effectiveUid),
-      LecturerClassScreen(onProfilePressed: openProfile, userId: effectiveUid), // Pass userId to class screen for Firestore queries
-      LecturerHistoryScreen(onProfilePressed: openProfile, userId: effectiveUid), // Pass userId to history screen for Firestore queries
-    ];
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance.collection('users').doc(effectiveUid).get(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator(color: Color(0xff111827))),
+          );
+        }
 
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: tabs,
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xff111827), 
-        unselectedItemColor: Colors.grey.shade500,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-        unselectedLabelStyle: const TextStyle(fontSize: 12),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_outlined),
-            activeIcon: Icon(Icons.dashboard),
-            label: 'Home',
+        if (snapshot.hasError || !snapshot.hasData || !snapshot.data!.exists) {
+          return const Scaffold(
+            body: Center(child: Text('Error loading user profile.')),
+          );
+        }
+
+        final data = snapshot.data!.data() as Map<String, dynamic>?;
+        final String displayName = data?['name'] ?? 'Lecturer';
+
+        final List<Widget> tabs = [
+          LecturerHomeTab(
+            onProfilePressed: openProfile,
+            userId: effectiveUid,
+            displayName: displayName,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.class_outlined),
-            activeIcon: Icon(Icons.class_),
-            label: 'Classes',
+          LecturerClassScreen(onProfilePressed: openProfile, userId: effectiveUid),
+          LecturerHistoryScreen(onProfilePressed: openProfile, userId: effectiveUid),
+        ];
+
+        return Scaffold(
+          body: IndexedStack(
+            index: _currentIndex,
+            children: tabs,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history_toggle_off_rounded),
-            activeIcon: Icon(Icons.history_rounded),
-            label: 'History',
+          bottomNavigationBar: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            type: BottomNavigationBarType.fixed,
+            selectedItemColor: const Color(0xff111827),
+            unselectedItemColor: Colors.grey.shade500,
+            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+            unselectedLabelStyle: const TextStyle(fontSize: 12),
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.dashboard_outlined),
+                activeIcon: Icon(Icons.dashboard),
+                label: 'Home',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.class_outlined),
+                activeIcon: Icon(Icons.class_),
+                label: 'Classes',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.history_toggle_off_rounded),
+                activeIcon: Icon(Icons.history_rounded),
+                label: 'History',
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
-// Lecturer Main Home View Tab
-class LecturerHomeTab extends StatelessWidget {
+// Lecturer Main Home View Tab — mirrors StudentHomeTab structure:
+// app logo/name bar, profile button, welcome message, current/next/past cards.
+class LecturerHomeTab extends StatefulWidget {
   final VoidCallback onProfilePressed;
-  final String? userId;
+  final String? userId; // lecturer's uid, matches lect_id on class docs
+  final String displayName;
 
   const LecturerHomeTab({
     super.key,
     required this.onProfilePressed,
     this.userId,
+    required this.displayName,
   });
+
+  @override
+  State<LecturerHomeTab> createState() => _LecturerHomeTabState();
+}
+
+class _LecturerHomeTabState extends State<LecturerHomeTab> {
+  late Future<DashboardSessionResult> _sessionsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSessions();
+  }
+
+  void _loadSessions() {
+    _sessionsFuture = SessionQueryHelper.fetchDashboardSessions(
+      userId: widget.userId ?? '',
+      userRole: 'lecturer',
+    );
+  }
+
+  Future<void> _refresh() async {
+    setState(() {
+      _loadSessions();
+    });
+    await _sessionsFuture;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -109,7 +164,7 @@ class LecturerHomeTab extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: GestureDetector(
-              onTap: onProfilePressed, 
+              onTap: widget.onProfilePressed,
               child: const CircleAvatar(
                 radius: 18,
                 backgroundColor: Color(0xff111827),
@@ -119,113 +174,106 @@ class LecturerHomeTab extends StatelessWidget {
           ),
         ],
       ),
-      body: SafeArea(
-        child: Padding(
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(24.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // FutureBuilder handles loading state dynamically from Firestore
-              FutureBuilder<DocumentSnapshot>(
-                future: userId != null 
-                    ? FirebaseFirestore.instance.collection('users').doc(userId).get()
-                    : null,
-                builder: (context, snapshot) {
-                  String displayName = 'Lecturer'; // Fallback text string
+              Text(
+                'Welcome back,',
+                style: TextStyle(fontSize: 16, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                widget.displayName,
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xff111827),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 28),
 
-                  if (snapshot.hasData && snapshot.data!.exists) {
-                    final data = snapshot.data!.data() as Map<String, dynamic>?;
-                    // Grab 'name' key property from your database mapping structure
-                    if (data != null && data['name'] != null) {
-                      displayName = data['name'];
-                    }
+              FutureBuilder<DashboardSessionResult>(
+                future: _sessionsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 40),
+                      child: Center(child: CircularProgressIndicator(color: Color(0xff111827))),
+                    );
                   }
 
-                  return Text(
-                    'Welcome Back, $displayName',
-                    style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xff1f2937)),
+                  if (snapshot.hasError) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 40),
+                      child: Center(
+                        child: Text('Failed to load sessions: ${snapshot.error}',
+                            style: const TextStyle(color: Colors.grey)),
+                      ),
+                    );
+                  }
+
+                  final result = snapshot.data ?? DashboardSessionResult();
+
+                  return Column(
+                    children: [
+                      if (result.current != null) ...[
+                        CurrentSessionCard(
+                          session: result.current!.session,
+                          className: result.current!.className,
+                          userId: widget.userId ?? '',
+                          userRole: 'lecturer',
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      if (result.next != null) ...[
+                        NextSessionCard(
+                          session: result.next!.session,
+                          className: result.next!.className,
+                          userId: widget.userId ?? '',
+                          userRole: 'lecturer',
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      if (result.past != null) ...[
+                        PastSessionCard(
+                          session: result.past!.session,
+                          className: result.past!.className,
+                          userId: widget.userId ?? '',
+                          userRole: 'lecturer',
+                          totalEnrolled: result.past!.totalEnrolled,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      if (result.current == null && result.next == null && result.past == null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 40),
+                          child: Center(
+                            child: Column(
+                              children: [
+                                Icon(Icons.event_busy_rounded, size: 48, color: Colors.grey.shade400),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No sessions to show yet.',
+                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
                   );
                 },
-              ),
-              const Text(
-                'Manage your classes and verify student attendance targets.',
-                style: TextStyle(fontSize: 14, color: Colors.grey),
-              ),
-              const SizedBox(height: 32),
-              Expanded(
-                child: ListView(
-                  children: [
-                    _buildMenuCard(
-                      icon: Icons.qr_code_scanner_rounded,
-                      title: 'Generate Attendance QR',
-                      description: 'Create a new geofenced session code.',
-                      color: const Color(0xff004ce6),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildMenuCard(
-                      icon: Icons.assignment_turned_in_outlined,
-                      title: 'View Active Sessions',
-                      description: 'Track incoming student check-ins live.',
-                      color: const Color(0xff10b981),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildMenuCard(
-                      icon: Icons.bar_chart_rounded,
-                      title: 'Attendance Analytics',
-                      description: 'Export statistical course summaries.',
-                      color: const Color(0xfff59e0b),
-                    ),
-                  ],
-                ),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildMenuCard({
-    required IconData icon,
-    required String title,
-    required String description,
-    required Color color,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(10),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        leading: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: color.withAlpha(25),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: color, size: 28),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4.0),
-          child: Text(description, style: const TextStyle(fontSize: 13, color: Colors.grey)),
-        ),
-        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.grey),
-        onTap: () {},
       ),
     );
   }

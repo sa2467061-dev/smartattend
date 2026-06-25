@@ -317,7 +317,11 @@ class _StudentClassScreenState extends State<StudentClassScreen> {
                           itemBuilder: (context, index) {
                             final doc = classSnapshot.data!.docs[index];
                             final classModel = ClassModel.fromFirestore(doc);
-                            return ClassCard(classData: classModel, userRole: 'student');
+                            return ClassCard(
+                              classData: classModel,
+                              userRole: 'student',
+                              userId: _fetchedMatrixNo ?? '',
+                            );
                           },
                         );
                       },

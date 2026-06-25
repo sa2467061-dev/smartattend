@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/class_model.dart'; // Verify this path matches your project structure
 import '../lecturer/add_session.dart'; // Ensure this path is correct for your project
+import '../session/session_model.dart'; // Adjust path to match your project structure
+import '../session/current_session_card.dart';
+import '../session/next_session_card.dart';
+import '../session/past_session_card.dart';
 
 class ClassDetailScreen extends StatelessWidget {
   final ClassModel classData;
   final String userRole;
+  final String userId; // matrix number (student) or uid (lecturer)
 
   const ClassDetailScreen({
-    super.key, 
-    required this.classData, 
+    super.key,
+    required this.classData,
     required this.userRole,
+    required this.userId,
   });
 
   @override
@@ -39,8 +46,8 @@ class ClassDetailScreen extends StatelessWidget {
         body: TabBarView(
           children: [
             // Tab 1: Class Sessions (Shared Layout view)
-            _SessionsTab(classData: classData, isLecturer: isLecturer),
-            
+            _SessionsTab(classData: classData, isLecturer: isLecturer, userId: userId),
+
             // Tab 2: Student Management List (Lecturer Only View)
             if (isLecturer) _StudentsListTab(classData: classData),
           ],
@@ -50,16 +57,24 @@ class ClassDetailScreen extends StatelessWidget {
   }
 }
 
-
-
 // ==========================================
 // 1. SESSIONS VIEW TAB (Shared by both)
 // ==========================================
 class _SessionsTab extends StatelessWidget {
   final ClassModel classData;
   final bool isLecturer;
+  final String userId;
 
-  const _SessionsTab({required this.classData, required this.isLecturer});
+  const _SessionsTab({required this.classData, required this.isLecturer, required this.userId});
+
+  void _openAddSessionSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => AddSessionSheet(classId: classData.id),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,14 +95,7 @@ class _SessionsTab extends StatelessWidget {
             ),
             if (isLecturer)
               ElevatedButton.icon(
-                onPressed: () {
-                  showModalBottomSheet(
-                   context: context,
-                    isScrollControlled: true,
-                   backgroundColor: Colors.transparent,
-                   builder: (context) => AddSessionSheet(classId: classData.id),
-                  );
-                },
+                onPressed: () => _openAddSessionSheet(context),
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xff004ce6)),
                 icon: const Icon(Icons.add, color: Colors.white, size: 18),
                 label: const Text('New Session', style: TextStyle(color: Colors.white)),
@@ -96,13 +104,94 @@ class _SessionsTab extends StatelessWidget {
         ),
         const SizedBox(height: 16),
 
-        // --- TODO: Drop a StreamBuilder<QuerySnapshot> here to fetch 'sessions' sub-collection ---
-        const Center(
-          child: Padding(
-            padding: EdgeInsets.symmetric(vertical: 40.0),
-            child: Text('No active classroom tracking sequences running yet.', style: TextStyle(color: Colors.grey)),
-          ),
-        )
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('session')
+              .where('cls_id', isEqualTo: classData.id)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 40.0),
+                child: Center(child: CircularProgressIndicator(color: Color(0xff004ce6))),
+              );
+            }
+
+            if (snapshot.hasError) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40.0),
+                child: Center(
+                  child: Text('Failed to load sessions: ${snapshot.error}', style: const TextStyle(color: Colors.grey)),
+                ),
+              );
+            }
+
+            final docs = snapshot.data?.docs ?? [];
+            if (docs.isEmpty) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40.0),
+                  child: Text('No active classroom tracking sequences running yet.', style: TextStyle(color: Colors.grey)),
+                ),
+              );
+            }
+
+            final sessions = docs.map(SessionModel.fromFirestore).toList();
+            final now = DateTime.now();
+
+            // Sort: current first, then soonest-upcoming, then most-recent-past last.
+            sessions.sort((a, b) {
+              int rank(SessionModel s) {
+                if (s.isCurrent(now: now)) return 0;
+                if (s.isUpcoming(now: now)) return 1;
+                return 2;
+              }
+              final rankA = rank(a);
+              final rankB = rank(b);
+              if (rankA != rankB) return rankA.compareTo(rankB);
+
+              // Within the same rank: upcoming sorts soonest-first,
+              // past sorts most-recent-first, current order doesn't matter much.
+              if (rankA == 1) return a.startTime.compareTo(b.startTime);
+              if (rankA == 2) return b.endTime.compareTo(a.endTime);
+              return 0;
+            });
+
+            return Column(
+              children: sessions.map((session) {
+                Widget card;
+                if (session.isCurrent(now: now)) {
+                  card = CurrentSessionCard(
+                    session: session,
+                    className: classData.name,
+                    userId: userId,
+                    userRole: isLecturer ? 'lecturer' : 'student',
+                  );
+                } else if (session.isUpcoming(now: now)) {
+                  card = NextSessionCard(
+                    session: session,
+                    className: classData.name,
+                    userId: userId,
+                    userRole: isLecturer ? 'lecturer' : 'student',
+                  );
+                } else {
+                  card = PastSessionCard(
+                    session: session,
+                    className: classData.name,
+                    userId: userId,
+                    userRole: isLecturer ? 'lecturer' : 'student',
+                    totalEnrolled: classData.enrolledStud.length,
+                  );
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 14.0),
+                  child: card,
+                );
+              }).toList(),
+            );
+          },
+        ),
       ],
     );
   }

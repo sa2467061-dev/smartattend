@@ -4,7 +4,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'student_class.dart';
 import 'student_history.dart';
 import 'student_profile.dart';
-
+import '../session/session_query_helper.dart';
+import '../session/current_session_card.dart';
+import '../session/next_session_card.dart';
+import '../session/past_session_card.dart';
+  
 class StudentDashboard extends StatefulWidget {
   final String? userId; 
   const StudentDashboard({super.key, this.userId});
@@ -18,10 +22,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Establish the clean user ID chain with an active fallback
     final String? effectiveUid = widget.userId ?? FirebaseAuth.instance.currentUser?.uid;
 
-    // Helper function to handle passing userId straight down into the profile route context
     void openProfile() {
       Navigator.push(
         context,
@@ -34,7 +36,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance.collection('users').doc(effectiveUid).get(),
       builder: (context, snapshot) {
-        // Show a loading screen while fetching user profile details (like matrix number)
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator(color: Color(0xff004ce6))),
@@ -47,12 +48,19 @@ class _StudentDashboardState extends State<StudentDashboard> {
           );
         }
 
+        final data = snapshot.data!.data() as Map<String, dynamic>?;
+        final String matrixNo = data?['matrix_no'] ?? '';
+        final String displayName = data?['name'] ?? 'Student';
 
-        // 2. Cascade down variables including the fixed matrixNo parameters
         final List<Widget> tabs = [
-          StudentHomeTab(onProfilePressed: openProfile, userId: effectiveUid), 
-          StudentClassScreen(onProfilePressed: openProfile, userId: effectiveUid ?? ''), // ✅ Matrix number passed safely!
-          StudentHistoryScreen(onProfilePressed: openProfile, userId: effectiveUid), 
+          StudentHomeTab(
+            onProfilePressed: openProfile,
+            userId: effectiveUid,
+            matrixNo: matrixNo,
+            displayName: displayName,
+          ),
+          StudentClassScreen(onProfilePressed: openProfile, userId: effectiveUid ?? ''),
+          StudentHistoryScreen(onProfilePressed: openProfile, userId: effectiveUid),
         ];
 
         return Scaffold(
@@ -68,7 +76,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
               });
             },
             type: BottomNavigationBarType.fixed,
-            selectedItemColor: const Color(0xff004ce6), // Student Theme Blue
+            selectedItemColor: const Color(0xff004ce6),
             unselectedItemColor: Colors.grey.shade500,
             selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
             unselectedLabelStyle: const TextStyle(fontSize: 12),
@@ -97,15 +105,46 @@ class _StudentDashboardState extends State<StudentDashboard> {
 }
 
 // --- Home View Tab ---
-class StudentHomeTab extends StatelessWidget {
+class StudentHomeTab extends StatefulWidget {
   final VoidCallback onProfilePressed;
-  final String? userId; 
+  final String? userId;
+  final String matrixNo; // needed to query session/attendance by student
+  final String displayName;
 
   const StudentHomeTab({
     super.key,
     required this.onProfilePressed,
     this.userId,
+    required this.matrixNo,
+    required this.displayName,
   });
+
+  @override
+  State<StudentHomeTab> createState() => _StudentHomeTabState();
+}
+
+class _StudentHomeTabState extends State<StudentHomeTab> {
+  late Future<DashboardSessionResult> _sessionsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSessions();
+  }
+
+  void _loadSessions() {
+    _sessionsFuture = SessionQueryHelper.fetchDashboardSessions(
+      userId: widget.matrixNo,
+      userRole: 'student',
+    );
+  }
+
+  Future<void> _refresh() async {
+    setState(() {
+      _loadSessions();
+    });
+    await _sessionsFuture;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -129,7 +168,7 @@ class StudentHomeTab extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: GestureDetector(
-              onTap: onProfilePressed, 
+              onTap: widget.onProfilePressed, 
               child: const CircleAvatar(
                 radius: 18,
                 backgroundColor: Color(0xff004ce6),
@@ -139,80 +178,105 @@ class StudentHomeTab extends StatelessWidget {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            FutureBuilder<DocumentSnapshot>(
-              future: userId != null 
-                  ? FirebaseFirestore.instance.collection('users').doc(userId).get()
-                  : null,
-              builder: (context, snapshot) {
-                String greetingName = 'Student';
-                
-                if (snapshot.hasData && snapshot.data!.exists) {
-                  final data = snapshot.data!.data() as Map<String, dynamic>?;
-                  if (data != null) {
-                    greetingName = data['name'] ?? greetingName;
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Welcome back,',
+                style: TextStyle(fontSize: 16, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                widget.displayName,
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xff111827),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 28),
+
+              FutureBuilder<DashboardSessionResult>(
+                future: _sessionsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 40),
+                      child: Center(child: CircularProgressIndicator(color: Color(0xff004ce6))),
+                    );
                   }
-                }
 
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Welcome back,',
-                      style: TextStyle(fontSize: 16, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      greetingName,
-                      style: const TextStyle(
-                        fontSize: 26, 
-                        fontWeight: FontWeight.bold, 
-                        color: Color(0xff111827),
+                  if (snapshot.hasError) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 40),
+                      child: Center(
+                        child: Text('Failed to load sessions: ${snapshot.error}',
+                            style: const TextStyle(color: Colors.grey)),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 28),
-            _buildSessionPlaceholder('Current Session', Icons.play_circle_outline),
-            const SizedBox(height: 12),
-            _buildSessionPlaceholder('Next Session', Icons.update),
-            const SizedBox(height: 12),
-            _buildSessionPlaceholder('Past Session', Icons.history),
-          ],
-        ),
-      ),
-    );
-  }
+                    );
+                  }
 
-  Widget _buildSessionPlaceholder(String title, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade500.withAlpha(10),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.grey.shade600, size: 22),
-          const SizedBox(width: 14),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade700,
-            ),
+                  final result = snapshot.data ?? DashboardSessionResult();
+
+                  return Column(
+                    children: [
+                      if (result.current != null) ...[
+                        CurrentSessionCard(
+                          session: result.current!.session,
+                          className: result.current!.className,
+                          userId: widget.matrixNo,
+                          userRole: 'student',
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      if (result.next != null) ...[
+                        NextSessionCard(
+                          session: result.next!.session,
+                          className: result.next!.className,
+                          userId: widget.matrixNo,
+                          userRole: 'student',
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      if (result.past != null) ...[
+                        PastSessionCard(
+                          session: result.past!.session,
+                          className: result.past!.className,
+                          userId: widget.matrixNo,
+                          userRole: 'student',
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      if (result.current == null && result.next == null && result.past == null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 40),
+                          child: Center(
+                            child: Column(
+                              children: [
+                                Icon(Icons.event_busy_rounded, size: 48, color: Colors.grey.shade400),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No sessions to show yet.',
+                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
