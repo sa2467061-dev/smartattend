@@ -1,19 +1,14 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart'; // Ganti Google Maps
+import 'package:latlong2/latlong.dart';      // Ganti Google Maps
 import 'package:geolocator/geolocator.dart';
 import '../session/session_model.dart';
 
 /// Bottom sheet / form that lets a lecturer create a new session for a class.
-///
-/// On submit:
-///   1. Writes a new `session` doc (cls_id, time_slot, geofence, qr_code, qr_expire)
-///   2. Pre-seeds one `attendance` doc per enrolled student (status: pending)
-///   Both writes happen in a single Firestore batch so they succeed or fail together.
 class AddSessionSheet extends StatefulWidget {
   final String classId;
-
   const AddSessionSheet({super.key, required this.classId});
 
   @override
@@ -23,19 +18,16 @@ class AddSessionSheet extends StatefulWidget {
 class _AddSessionSheetState extends State<AddSessionSheet> {
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _startTime = TimeOfDay.now();
-  TimeOfDay _endTime = TimeOfDay.now().replacing(
-    hour: (TimeOfDay.now().hour + 1) % 24,
-  );
+  TimeOfDay _endTime = TimeOfDay.now().replacing(hour: (TimeOfDay.now().hour + 1) % 24);
 
   LatLng? _pinLocation;
-  double _radiusM = 50; // default geofence radius
+  double _radiusM = 50;
   final TextEditingController _locationNameController = TextEditingController();
-  GoogleMapController? _mapController;
 
   bool _isLoadingDefaultLocation = true;
   bool _isSubmitting = false;
 
-  static const double _defaultLat = 3.1390; // fallback if nothing else available
+  static const double _defaultLat = 3.1390;
   static const double _defaultLng = 101.6869;
 
   @override
@@ -50,8 +42,6 @@ class _AddSessionSheetState extends State<AddSessionSheet> {
     super.dispose();
   }
 
-  // Pre-fill the map pin with the class's most recent session location,
-  // so the lecturer isn't dropping a pin from scratch every time.
   Future<void> _loadDefaultPin() async {
     try {
       final lastSessionQuery = await FirebaseFirestore.instance
@@ -71,11 +61,8 @@ class _AddSessionSheetState extends State<AddSessionSheet> {
         });
         return;
       }
-    } catch (_) {
-      // fall through to GPS / default below
-    }
+    } catch (_) {}
 
-    // No previous session for this class — try device GPS as a starting point.
     try {
       final hasPermission = await _ensureLocationPermission();
       if (hasPermission) {
@@ -86,9 +73,7 @@ class _AddSessionSheetState extends State<AddSessionSheet> {
         });
         return;
       }
-    } catch (_) {
-      // fall through to hardcoded default below
-    }
+    } catch (_) {}
 
     setState(() {
       _pinLocation = const LatLng(_defaultLat, _defaultLng);
@@ -129,101 +114,62 @@ class _AddSessionSheetState extends State<AddSessionSheet> {
     return DateTime(date.year, date.month, date.day, time.hour, time.minute);
   }
 
-  // Simple unique-ish code for the QR; swap for a more robust generator if needed.
   String _generateQrCode() {
     final rand = Random();
-    final chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     return List.generate(8, (_) => chars[rand.nextInt(chars.length)]).join();
   }
 
   Future<void> _submit() async {
     if (_pinLocation == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please set a location for this session.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please set a location.')));
       return;
     }
-
     final locationName = _locationNameController.text.trim();
     if (locationName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a classroom/location name.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a classroom name.')));
       return;
     }
-
     final startDateTime = _combine(_selectedDate, _startTime);
     final endDateTime = _combine(_selectedDate, _endTime);
 
     if (!endDateTime.isAfter(startDateTime)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('End time must be after start time.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('End time must be after start time.')));
       return;
     }
 
     setState(() => _isSubmitting = true);
-
     try {
-      // 1. Fetch the class doc to get the enrolled students list (matrix numbers)
-      final classDoc = await FirebaseFirestore.instance
-          .collection('classes')
-          .doc(widget.classId)
-          .get();
+      final classDoc = await FirebaseFirestore.instance.collection('classes').doc(widget.classId).get();
+      final List<dynamic> enrolledStud = classDoc.data()?['enrolled_stud'] ?? [];
 
-      if (!classDoc.exists) {
-        throw 'Class not found.';
-      }
-
-      final classData = classDoc.data();
-      final List<dynamic> enrolledStud = classData?['enrolled_stud'] ?? [];
-
-      // 2. Build the new session model
       final newSession = SessionModel(
-        sesId: '', // assigned by Firestore on write
-        clsId: widget.classId,
-        createdAt: DateTime.now(),
-        startTime: startDateTime,
-        endTime: endDateTime,
-        geoLat: _pinLocation!.latitude,
-        geoLng: _pinLocation!.longitude,
-        geoRadiusM: _radiusM,
-        locationName: locationName,
-        qrCode: _generateQrCode(),
-        qrExpire: endDateTime, // QR valid for the whole session window
+        sesId: '', clsId: widget.classId, createdAt: DateTime.now(),
+        startTime: startDateTime, endTime: endDateTime,
+        geoLat: _pinLocation!.latitude, geoLng: _pinLocation!.longitude,
+        geoRadiusM: _radiusM, locationName: locationName,
+        qrCode: _generateQrCode(), qrExpire: endDateTime,
       );
 
-      // 3. Batch write: session doc + one pending attendance doc per student
       final firestore = FirebaseFirestore.instance;
       final batch = firestore.batch();
-
       final sessionRef = firestore.collection('session').doc();
       batch.set(sessionRef, newSession.toFirestore());
 
       for (final matrixNo in enrolledStud) {
-        final attendanceRef = firestore.collection('attendance').doc();
-        batch.set(attendanceRef, {
-          'ses_id': sessionRef.id,
-          'cls_id': widget.classId,
-          'stud_id': matrixNo,
-          'status': 'pending',
-          'timestamp': null,
-          'proof': null,
+        batch.set(firestore.collection('attendance').doc(), {
+          'ses_id': sessionRef.id, 'cls_id': widget.classId,
+          'stud_id': matrixNo, 'status': 'pending',
+          'timestamp': null, 'proof': null,
         });
       }
-
       await batch.commit();
 
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Session created successfully!')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Session created!')));
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to create session: $e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -232,107 +178,51 @@ class _AddSessionSheetState extends State<AddSessionSheet> {
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
-      initialChildSize: 0.9,
-      maxChildSize: 0.95,
-      minChildSize: 0.5,
-      expand: false,
+      initialChildSize: 0.9, maxChildSize: 0.95, minChildSize: 0.5, expand: false,
       builder: (context, scrollController) {
         return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-          ),
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
           child: SingleChildScrollView(
             controller: scrollController,
             padding: const EdgeInsets.all(24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Create Session',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xff111827)),
-                ),
+                const Text('Create Session', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xff111827))),
                 const SizedBox(height: 6),
-                const Text(
-                  'Set the date, time, and location for attendance tracking.',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
-                ),
+                const Text('Set the date, time, and location.', style: TextStyle(color: Colors.grey, fontSize: 13)),
                 const SizedBox(height: 24),
-
+                
                 _buildLabel('Date'),
-                _buildPickerTile(
-                  icon: Icons.calendar_today_outlined,
-                  label: '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
-                  onTap: _pickDate,
-                ),
+                _buildPickerTile(icon: Icons.calendar_today_outlined, label: '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}', onTap: _pickDate),
                 const SizedBox(height: 16),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildLabel('Start Time'),
-                          _buildPickerTile(
-                            icon: Icons.schedule,
-                            label: _startTime.format(context),
-                            onTap: _pickStartTime,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildLabel('End Time'),
-                          _buildPickerTile(
-                            icon: Icons.schedule_outlined,
-                            label: _endTime.format(context),
-                            onTap: _pickEndTime,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                
+                Row(children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [_buildLabel('Start Time'), _buildPickerTile(icon: Icons.schedule, label: _startTime.format(context), onTap: _pickStartTime)])),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [_buildLabel('End Time'), _buildPickerTile(icon: Icons.schedule_outlined, label: _endTime.format(context), onTap: _pickEndTime)])),
+                ]),
                 const SizedBox(height: 20),
 
                 _buildLabel('Classroom / Location Name'),
                 TextField(
                   controller: _locationNameController,
                   decoration: InputDecoration(
-                    hintText: 'e.g. Room CS-204, Lab 3',
-                    filled: true,
-                    fillColor: const Color(0xfff8f9fa),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    hintText: 'e.g. Room CS-204', filled: true, fillColor: const Color(0xfff8f9fa),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                   ),
-                  textCapitalization: TextCapitalization.words,
                 ),
                 const SizedBox(height: 20),
 
                 _buildLabel('Session Location (drag pin to adjust)'),
                 const SizedBox(height: 8),
-                _buildMapPicker(),
+                _buildMapPicker(), 
                 const SizedBox(height: 16),
 
                 _buildLabel('Geofence Radius: ${_radiusM.toInt()} m'),
                 Slider(
-                  value: _radiusM,
-                  min: 10,
-                  max: 200,
-                  divisions: 19,
+                  value: _radiusM, min: 10, max: 200, divisions: 19,
                   activeColor: const Color(0xff004ce6),
-                  label: '${_radiusM.toInt()} m',
                   onChanged: (value) => setState(() => _radiusM = value),
                 ),
                 const SizedBox(height: 24),
@@ -340,24 +230,11 @@ class _AddSessionSheetState extends State<AddSessionSheet> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xff004ce6),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 0,
-                    ),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xff004ce6), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                     onPressed: _isSubmitting ? null : _submit,
-                    child: _isSubmitting
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                          )
-                        : const Text('Create Session', style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: _isSubmitting ? const CircularProgressIndicator(color: Colors.white) : const Text('Create Session'),
                   ),
                 ),
-                const SizedBox(height: 8),
               ],
             ),
           ),
@@ -366,79 +243,57 @@ class _AddSessionSheetState extends State<AddSessionSheet> {
     );
   }
 
-  Widget _buildLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Text(
-        text,
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xff374151)),
-      ),
-    );
-  }
+  Widget _buildLabel(String text) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xff374151))));
 
   Widget _buildPickerTile({required IconData icon, required String label, required VoidCallback onTap}) {
     return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      onTap: onTap, borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          color: const Color(0xfff8f9fa),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: Colors.grey.shade600),
-            const SizedBox(width: 10),
-            Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-          ],
-        ),
+        decoration: BoxDecoration(color: const Color(0xfff8f9fa), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+        child: Row(children: [Icon(icon, size: 20, color: Colors.grey.shade600), const SizedBox(width: 10), Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500))]),
       ),
     );
   }
 
+  // --- MAP PICKER YANG TELAH DIKEMASKINI ---
   Widget _buildMapPicker() {
     if (_isLoadingDefaultLocation || _pinLocation == null) {
-      return Container(
-        height: 220,
-        decoration: BoxDecoration(
-          color: const Color(0xfff8f9fa),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: const Center(child: CircularProgressIndicator(color: Color(0xff004ce6))),
-      );
+      return Container(height: 220, decoration: BoxDecoration(color: const Color(0xfff8f9fa), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade200)), child: const Center(child: CircularProgressIndicator()));
     }
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: SizedBox(
         height: 220,
-        child: GoogleMap(
-          initialCameraPosition: CameraPosition(target: _pinLocation!, zoom: 17),
-          onMapCreated: (controller) => _mapController = controller,
-          markers: {
-            Marker(
-              markerId: const MarkerId('session_location'),
-              position: _pinLocation!,
-              draggable: true,
-              onDragEnd: (newPos) => setState(() => _pinLocation = newPos),
+        child: FlutterMap(
+          options: MapOptions(
+            initialCenter: _pinLocation!,
+            initialZoom: 17,
+            onTap: (_, point) => setState(() => _pinLocation = LatLng(point.latitude, point.longitude)),
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.example.smartattend',
             ),
-          },
-          circles: {
-            Circle(
-              circleId: const CircleId('geofence_radius'),
-              center: _pinLocation!,
-              radius: _radiusM,
-              fillColor: const Color(0xff004ce6).withAlpha(40),
-              strokeColor: const Color(0xff004ce6),
-              strokeWidth: 1,
-            ),
-          },
-          onTap: (newPos) => setState(() => _pinLocation = newPos),
-          myLocationButtonEnabled: false,
-          zoomControlsEnabled: false,
+            CircleLayer(circles: [
+              CircleMarker(
+                point: _pinLocation!,
+                radius: _radiusM,
+                useRadiusInMeter: true,
+                color: const Color(0xff004ce6).withOpacity(0.2),
+                borderColor: const Color(0xff004ce6),
+                borderStrokeWidth: 1,
+              ),
+            ]),
+            MarkerLayer(markers: [
+              Marker(
+                point: _pinLocation!,
+                child: const Icon(Icons.location_pin, color: Colors.red, size: 40),
+              ),
+            ]),
+          ],
         ),
       ),
     );
