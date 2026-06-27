@@ -1,10 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 import '../session/attendance_model.dart';
 
 class StudentHistoryScreen extends StatefulWidget {
   final VoidCallback? onProfilePressed;
-  final String? userId;
+  final String? userId; // matrix_no
 
   const StudentHistoryScreen({super.key, this.onProfilePressed, this.userId});
 
@@ -15,16 +18,11 @@ class StudentHistoryScreen extends StatefulWidget {
 class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
   String _filter = 'All';
 
-  // ─── CHANGED: returns a Stream instead of a Future ───────────────────────
   Stream<Map<String, dynamic>> _watchHistoryData() {
     if (widget.userId == null) {
-      return Stream.value(
-          {'records': [], 'present': 0, 'absent': 0, 'rate': 0});
+      return Stream.value({'records': [], 'present': 0, 'absent': 0, 'rate': 0});
     }
 
-    // Listen to the attendance collection in real-time.
-    // Every time any attendance doc for this student changes, the stream
-    // emits and we rebuild – so Present / Absent / Rate all update instantly.
     return FirebaseFirestore.instance
         .collection('attendance')
         .where('stud_id', isEqualTo: widget.userId)
@@ -62,7 +60,7 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
           }
         } catch (_) {}
 
-        // Show ALL sessions (ongoing + past) — no skip
+        // Show ALL sessions (ongoing + past)
 
         try {
           final classDoc = await FirebaseFirestore.instance
@@ -74,7 +72,7 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
           }
         } catch (_) {}
 
-        // pending on a PAST session = absent; pending on ongoing = still pending
+        // pending on past session = absent; pending on ongoing = still pending
         final effectiveStatus =
             (model.isPending && isPastSession) ? 'absent' : model.status;
 
@@ -82,11 +80,14 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
         if (effectiveStatus == 'absent') absent++;
 
         records.add({
+          'attId': model.attId,
           'status': effectiveStatus,
           'className': className,
           'locationName': locationName,
           'startTime': startTime,
           'endTime': endTime,
+          'proof': model.proof,
+          'proofReason': model.proofReason,
         });
       }
 
@@ -119,22 +120,195 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
   }
 
   String _formatDate(DateTime dt) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
-    ];
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
     return '${days[dt.weekday - 1]}, ${dt.day} ${months[dt.month - 1]} ${dt.year}';
+  }
+
+  // ── Upload reason bottom sheet ────────────────────────────────────────────
+  void _showUploadReasonSheet(String attId, String? existingProof, String? existingReason) {
+    final TextEditingController reasonCtrl =
+        TextEditingController(text: existingReason ?? '');
+    File? pickedImage;
+    bool isUploading = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setSheet) {
+          Future<void> pickImage() async {
+            final picker = ImagePicker();
+            final picked = await picker.pickImage(
+                source: ImageSource.gallery, imageQuality: 70);
+            if (picked != null) {
+              setSheet(() => pickedImage = File(picked.path));
+            }
+          }
+
+          Future<void> submit() async {
+            if (reasonCtrl.text.trim().isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Please enter a reason.')),
+              );
+              return;
+            }
+            setSheet(() => isUploading = true);
+
+            try {
+              String? proofUrl = existingProof;
+
+              if (pickedImage != null) {
+                final ref = FirebaseStorage.instance
+                    .ref()
+                    .child('attendance_proof')
+                    .child('$attId.jpg');
+                await ref.putFile(pickedImage!);
+                proofUrl = await ref.getDownloadURL();
+              }
+
+              await FirebaseFirestore.instance
+                  .collection('attendance')
+                  .doc(attId)
+                  .update({
+                'proof': proofUrl,
+                'proof_reason': reasonCtrl.text.trim(),
+              });
+
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Reason submitted successfully.')),
+                );
+              }
+            } catch (e) {
+              setSheet(() => isUploading = false);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to submit: $e')),
+              );
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              left: 24,
+              right: 24,
+              top: 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Color(0xffdc2626)),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Submit Absence Reason',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Provide a reason and optionally upload supporting proof (e.g. MC, university letter).',
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+                const SizedBox(height: 20),
+
+                // Text reason
+                TextField(
+                  controller: reasonCtrl,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: 'e.g. Medical Certificate — fever and flu',
+                    filled: true,
+                    fillColor: const Color(0xfff8f9fa),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade200),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Image picker
+                GestureDetector(
+                  onTap: pickImage,
+                  child: Container(
+                    width: double.infinity,
+                    height: pickedImage != null ? 160 : 80,
+                    decoration: BoxDecoration(
+                      color: const Color(0xfff1f5f9),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: const Color(0xffcbd5e1), style: BorderStyle.solid),
+                    ),
+                    child: pickedImage != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.file(pickedImage!, fit: BoxFit.cover),
+                          )
+                        : existingProof != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.network(existingProof, fit: BoxFit.cover),
+                              )
+                            : Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const [
+                                  Icon(Icons.upload_file_rounded,
+                                      color: Color(0xff94a3b8), size: 28),
+                                  SizedBox(height: 6),
+                                  Text('Tap to upload proof image (optional)',
+                                      style: TextStyle(
+                                          color: Color(0xff94a3b8), fontSize: 13)),
+                                ],
+                              ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xffdc2626),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    onPressed: isUploading ? null : submit,
+                    child: isUploading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2))
+                        : Text(
+                            existingProof != null || existingReason != null
+                                ? 'Update Reason'
+                                : 'Submit Reason',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        });
+      },
+    );
   }
 
   @override
@@ -151,13 +325,11 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
           children: const [
             Icon(Icons.domain_verification, color: Color(0xff004ce6), size: 28),
             SizedBox(width: 8),
-            Text(
-              'SMARTATTEND',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  letterSpacing: 0.5),
-            ),
+            Text('SMARTATTEND',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    letterSpacing: 0.5)),
           ],
         ),
         actions: [
@@ -174,31 +346,22 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
           ),
         ],
       ),
-
-      // ─── CHANGED: StreamBuilder replaces FutureBuilder ───────────────────
       body: StreamBuilder<Map<String, dynamic>>(
         stream: _watchHistoryData(),
         builder: (context, snapshot) {
-          // Show loader only on the very first load
           if (snapshot.connectionState == ConnectionState.waiting &&
               !snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-
-          // Show error state if stream fails
           if (snapshot.hasError) {
             return Center(
-              child: Text(
-                'Failed to load history.\nPlease try again.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
-              ),
+              child: Text('Failed to load history.',
+                  style: TextStyle(color: Colors.grey.shade500)),
             );
           }
 
           final data = snapshot.data ??
               {'records': [], 'present': 0, 'absent': 0, 'rate': 0};
-
           final allRecords = data['records'] as List<Map<String, dynamic>>;
           final present = data['present'] as int;
           final absent = data['absent'] as int;
@@ -211,46 +374,33 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              const Text(
-                'Attendance History',
-                style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xff111827)),
-              ),
+              const Text('Attendance History',
+                  style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xff111827))),
               const SizedBox(height: 16),
-
-              // Summary cards – update automatically when attendance changes
               Row(
                 children: [
-                  _buildSummaryCard(
-                      '$present', 'Present', const Color(0xff16a34a)),
+                  _buildSummaryCard('$present', 'Present', const Color(0xff16a34a)),
                   const SizedBox(width: 12),
-                  _buildSummaryCard(
-                      '$absent', 'Absent', const Color(0xffdc2626)),
+                  _buildSummaryCard('$absent', 'Absent', const Color(0xffdc2626)),
                   const SizedBox(width: 12),
                   _buildSummaryCard('$rate%', 'Rate', const Color(0xff004ce6)),
                 ],
               ),
               const SizedBox(height: 20),
-
-              // Filter tabs
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(10)),
                 padding: const EdgeInsets.all(4),
-                child: Row(
-                  children: [
-                    _buildFilterTab('All', allRecords.length),
-                    _buildFilterTab('Absent', absent),
-                  ],
-                ),
+                child: Row(children: [
+                  _buildFilterTab('All', allRecords.length),
+                  _buildFilterTab('Absent', absent),
+                ]),
               ),
               const SizedBox(height: 16),
-
-              // Records list
               if (filtered.isEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 40),
@@ -259,13 +409,13 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
                       _filter == 'Absent'
                           ? 'No absent records. Great attendance!'
                           : 'No attendance records yet.',
-                      style:
-                          TextStyle(color: Colors.grey.shade500, fontSize: 14),
+                      style: TextStyle(
+                          color: Colors.grey.shade500, fontSize: 14),
                     ),
                   ),
                 )
               else
-                ...filtered.map((record) => _buildRecordCard(record)).toList(),
+                ...filtered.map((r) => _buildRecordCard(r)).toList(),
             ],
           );
         },
@@ -285,44 +435,26 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
             color: isSelected ? Colors.white : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withAlpha(20),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    )
-                  ]
+                ? [BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 4, offset: const Offset(0, 1))]
                 : [],
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: isSelected
-                      ? const Color(0xff111827)
-                      : Colors.grey.shade500,
-                ),
-              ),
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected ? const Color(0xff111827) : Colors.grey.shade500)),
               const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? const Color(0xff004ce6)
-                      : Colors.grey.shade400,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '$count',
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold),
-                ),
+                    color: isSelected ? const Color(0xff004ce6) : Colors.grey.shade400,
+                    borderRadius: BorderRadius.circular(10)),
+                child: Text('$count',
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -336,22 +468,14 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: color.withAlpha(20),
-          borderRadius: BorderRadius.circular(12),
-        ),
+            color: color.withAlpha(20), borderRadius: BorderRadius.circular(12)),
         child: Column(
           children: [
-            Text(
-              value,
-              style: TextStyle(
-                  fontSize: 22, fontWeight: FontWeight.bold, color: color),
-            ),
+            Text(value,
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color)),
             const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                  fontSize: 12, color: color, fontWeight: FontWeight.w600),
-            ),
+            Text(label,
+                style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
           ],
         ),
       ),
@@ -364,6 +488,9 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
     final locationName = record['locationName'] as String;
     final startTime = record['startTime'] as DateTime?;
     final endTime = record['endTime'] as DateTime?;
+    final attId = record['attId'] as String;
+    final proof = record['proof'] as String?;
+    final proofReason = record['proofReason'] as String?;
 
     final isPresent = status == 'present';
     final isAbsent = status == 'absent';
@@ -374,11 +501,10 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
             ? const Color(0xffdc2626)
             : Colors.grey;
 
-    final String statusLabel = isPresent
-        ? 'Present'
-        : isAbsent
-            ? 'Absent'
-            : 'Pending';
+    final String statusLabel =
+        isPresent ? 'Present' : isAbsent ? 'Absent' : 'Pending';
+
+    final bool hasReason = proofReason != null && proofReason.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -387,86 +513,125 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade200),
       ),
-      child: Row(
+      child: Column(
         children: [
-          // Left color bar
-          Container(
-            width: 5,
-            height: 80,
-            decoration: BoxDecoration(
-              color: barColor,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                bottomLeft: Radius.circular(12),
+          Row(
+            children: [
+              // Left color bar
+              Container(
+                width: 5,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: barColor,
+                  borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      bottomLeft: Radius.circular(12)),
+                ),
               ),
-            ),
+              const SizedBox(width: 12),
+              Container(
+                  width: 10,
+                  height: 10,
+                  decoration:
+                      BoxDecoration(color: barColor, shape: BoxShape.circle)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(className,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Color(0xff111827)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 3),
+                      if (startTime != null)
+                        Text(_formatDate(startTime),
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      if (startTime != null && endTime != null)
+                        Text(
+                          '${_formatTime(startTime)} – ${_formatTime(endTime)}'
+                          '${locationName.isNotEmpty ? ' · $locationName' : ''}',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                      color: barColor.withAlpha(20),
+                      borderRadius: BorderRadius.circular(20)),
+                  child: Text(statusLabel,
+                      style: TextStyle(
+                          color: barColor, fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
 
-          // Status dot
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(
-              color: barColor,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 12),
-
-          // Info
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+          // ── Absent reason section ─────────────────────────────────────────
+          if (isAbsent) ...[
+            Divider(height: 1, color: Colors.grey.shade100),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    className,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: Color(0xff111827)),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  if (hasReason) ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.check_circle_outline,
+                            size: 14, color: Color(0xff16a34a)),
+                        const SizedBox(width: 6),
+                        const Text('Reason submitted',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xff16a34a),
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(proofReason!,
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 8),
+                  ],
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xffdc2626),
+                        side: const BorderSide(color: Color(0xffdc2626)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
+                      onPressed: () =>
+                          _showUploadReasonSheet(attId, proof, proofReason),
+                      icon: Icon(
+                          hasReason ? Icons.edit_outlined : Icons.upload_file_rounded,
+                          size: 16),
+                      label: Text(
+                        hasReason ? 'Update Reason' : 'Submit Absence Reason',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 3),
-                  if (startTime != null)
-                    Text(
-                      _formatDate(startTime),
-                      style:
-                          TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                    ),
-                  if (startTime != null && endTime != null)
-                    Text(
-                      '${_formatTime(startTime)} – ${_formatTime(endTime)}'
-                      '${locationName.isNotEmpty ? ' · $locationName' : ''}',
-                      style:
-                          TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
                 ],
               ),
             ),
-          ),
-
-          // Status badge
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: barColor.withAlpha(20),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                statusLabel,
-                style: TextStyle(
-                    color: barColor, fontSize: 12, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
+          ],
         ],
       ),
     );
