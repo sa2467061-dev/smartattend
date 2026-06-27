@@ -1,21 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:flutter/services.dart';
 import 'session_model.dart';
 
-/// Single screen for viewing a session's details, branching its content
-/// by role. Reused from the dashboard's CurrentSessionCard and from the
-/// session list inside class_detail.dart.
-///
-/// Student view: geolocation check + QR scan to mark attendance.
-/// Lecturer view: live present count, list of students who haven't ticked,
-/// list of students at/over 15% absence for this class, and a delete-session action.
 class SessionDetailScreen extends StatefulWidget {
   final SessionModel session;
   final String className;
-  final String userId; // matrix number (student) or uid (lecturer)
-  final String userRole; // 'student' | 'lecturer'
+  final String userId;
+  final String userRole;
 
   const SessionDetailScreen({
     super.key,
@@ -40,11 +34,15 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0.5,
-        title: Text(widget.className, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+        title: Text(
+          widget.className,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+        ),
         actions: isLecturer
             ? [
                 IconButton(
-                  icon: const Icon(Icons.delete_outline_rounded, color: Color(0xffdc2626)),
+                  icon: const Icon(Icons.delete_outline_rounded,
+                      color: Color(0xffdc2626)),
                   onPressed: () => _confirmDeleteSession(context),
                 ),
               ]
@@ -65,10 +63,13 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
           'This will permanently delete this session and all its attendance records. This cannot be undone.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: Color(0xffdc2626))),
+            child: const Text('Delete',
+                style: TextStyle(color: Color(0xffdc2626))),
           ),
         ],
       ),
@@ -78,7 +79,6 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
 
     try {
       final firestore = FirebaseFirestore.instance;
-
       final attendanceDocs = await firestore
           .collection('attendance')
           .where('ses_id', isEqualTo: widget.session.sesId)
@@ -106,7 +106,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
 }
 
 // ==========================================
-// STUDENT VIEW: geolocation + QR check-in
+// STUDENT VIEW: location → biometric → mark
 // ==========================================
 class _StudentSessionBody extends StatefulWidget {
   final SessionModel session;
@@ -119,13 +119,19 @@ class _StudentSessionBody extends StatefulWidget {
 }
 
 class _StudentSessionBodyState extends State<_StudentSessionBody> {
+  // --- Location state ---
   bool _isCheckingLocation = false;
   bool _isWithinGeofence = false;
   String? _locationError;
   bool _hasCheckedLocationOnce = false;
 
-  bool _isProcessingScan = false;
+  // --- Biometric / attendance state ---
+  bool _isAuthenticating = false;
+  bool _isMarkingAttendance = false;
 
+  final LocalAuthentication _localAuth = LocalAuthentication();
+
+  // ── Location check ──────────────────────────────────────────────────
   Future<void> _checkGeofence() async {
     setState(() {
       _isCheckingLocation = true;
@@ -137,9 +143,11 @@ class _StudentSessionBodyState extends State<_StudentSessionBody> {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
         setState(() {
-          _locationError = 'Location permission denied. Enable it in settings to check in.';
+          _locationError =
+              'Location permission denied. Enable it in settings to check in.';
           _isCheckingLocation = false;
           _hasCheckedLocationOnce = true;
         });
@@ -161,41 +169,139 @@ class _StudentSessionBodyState extends State<_StudentSessionBody> {
       });
     } catch (e) {
       setState(() {
-        _locationError = 'Could not get your location. Make sure GPS is enabled.';
+        _locationError =
+            'Could not get your location. Make sure GPS is enabled.';
         _isCheckingLocation = false;
         _hasCheckedLocationOnce = true;
       });
     }
   }
 
-  Future<void> _onQrDetected(BarcodeCapture capture) async {
-    if (_isProcessingScan) return;
-    final barcodes = capture.barcodes;
-    if (barcodes.isEmpty) return;
+  // ── Biometric then mark ─────────────────────────────────────────────
+  Future<void> _authenticateAndMark() async {
+    if (_isAuthenticating || _isMarkingAttendance) return;
 
-    final scannedValue = barcodes.first.rawValue;
-    if (scannedValue == null) return;
+    setState(() => _isAuthenticating = true);
 
-    setState(() => _isProcessingScan = true);
+    try {
+      final bool canCheckBiometrics = await _localAuth.canCheckBiometrics;
+      final bool isDeviceSupported = await _localAuth.isDeviceSupported();
 
-    if (!_isWithinGeofence) {
-      _showScanResult(false, 'You must be within the classroom area to check in.');
-      setState(() => _isProcessingScan = false);
-      return;
+      if (!canCheckBiometrics && !isDeviceSupported) {
+        if (mounted) _showNoSecurityDialog();
+        return;
+      }
+
+      final List<BiometricType> availableBiometrics =
+          await _localAuth.getAvailableBiometrics();
+
+      String reason = 'Verify your identity to mark attendance';
+      if (availableBiometrics.contains(BiometricType.fingerprint)) {
+        reason = 'Use your fingerprint to mark attendance';
+      } else if (availableBiometrics.contains(BiometricType.face)) {
+        reason = 'Use Face ID to mark attendance';
+      }
+
+      final bool authenticated = await _localAuth.authenticate(
+        localizedReason: reason,
+        options: const AuthenticationOptions(
+          biometricOnly: false,
+          stickyAuth: true,
+        ),
+      );
+
+      if (!mounted) return;
+
+      if (authenticated) {
+        await _markAttendance();
+      } else {
+        _showSnack(false, 'Authentication cancelled. Please try again.');
+      }
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      if (e.code == 'NotAvailable' ||
+          e.code == 'NotEnrolled' ||
+          e.code == 'no_fragment_activity') {
+        _showFallbackDialog();
+      } else if (e.code == 'LockedOut' || e.code == 'PermanentlyLockedOut') {
+        _showSnack(false,
+            'Too many failed attempts. Unlock your device and try again.');
+      } else {
+        _showSnack(false, 'Authentication error: ${e.message}');
+      }
+    } finally {
+      if (mounted) setState(() => _isAuthenticating = false);
     }
+  }
 
-    if (DateTime.now().isAfter(widget.session.qrExpire)) {
-      _showScanResult(false, 'This QR code has expired.');
-      setState(() => _isProcessingScan = false);
-      return;
-    }
+  // ── Fallback: biometric not enrolled ────────────────────────────────
+  Future<void> _showFallbackDialog() async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('No Biometric Set Up'),
+        content: const Text(
+          'Your device does not have a fingerprint or face ID configured. '
+          'Would you like to mark attendance without biometric verification?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xff004ce6),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Mark Anyway'),
+          ),
+        ],
+      ),
+    );
+    if (proceed == true && mounted) await _markAttendance();
+  }
 
-    if (scannedValue != widget.session.qrCode) {
-      _showScanResult(false, 'Invalid QR code for this session.');
-      setState(() => _isProcessingScan = false);
-      return;
-    }
+  // ── Fallback: no device lock at all ─────────────────────────────────
+  Future<void> _showNoSecurityDialog() async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('No Device Lock Found'),
+        content: const Text(
+          'Your device has no screen lock (PIN, fingerprint, etc.) set up. '
+          'For security we recommend setting one up in your device settings. '
+          'Do you still want to mark attendance?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xff004ce6),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Mark Anyway'),
+          ),
+        ],
+      ),
+    );
+    if (proceed == true && mounted) await _markAttendance();
+  }
 
+  // ── Write to Firestore ───────────────────────────────────────────────
+  Future<void> _markAttendance() async {
+    setState(() => _isMarkingAttendance = true);
     try {
       final attendanceQuery = await FirebaseFirestore.instance
           .collection('attendance')
@@ -205,8 +311,8 @@ class _StudentSessionBodyState extends State<_StudentSessionBody> {
           .get();
 
       if (attendanceQuery.docs.isEmpty) {
-        _showScanResult(false, 'No attendance record found for you in this session.');
-        setState(() => _isProcessingScan = false);
+        _showSnack(
+            false, 'No attendance record found for you in this session.');
         return;
       }
 
@@ -215,27 +321,27 @@ class _StudentSessionBodyState extends State<_StudentSessionBody> {
         'timestamp': Timestamp.now(),
       });
 
-      _showScanResult(true, 'Attendance marked successfully!');
+      _showSnack(true, 'Attendance marked successfully!');
     } catch (e) {
-      _showScanResult(false, 'Failed to mark attendance: $e');
+      _showSnack(false, 'Failed to mark attendance: $e');
     } finally {
-      if (mounted) setState(() => _isProcessingScan = false);
+      if (mounted) setState(() => _isMarkingAttendance = false);
     }
   }
 
-  void _showScanResult(bool success, String message) {
+  void _showSnack(bool success, String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: success ? const Color(0xff16a34a) : const Color(0xffdc2626),
+        backgroundColor:
+            success ? const Color(0xff16a34a) : const Color(0xffdc2626),
       ),
     );
-    if (success) {
-      setState(() {});
-    }
+    if (success) setState(() {});
   }
 
+  // ── Build ────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return ListView(
@@ -246,20 +352,35 @@ class _StudentSessionBodyState extends State<_StudentSessionBody> {
         _buildOwnStatusCard(),
         const SizedBox(height: 24),
 
+        // Step 1 — Location
         const Text(
           'Step 1: Confirm Location',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xff111827)),
+          style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Color(0xff111827)),
         ),
         const SizedBox(height: 10),
         _buildLocationStep(),
         const SizedBox(height: 24),
 
-        const Text(
-          'Step 2: Scan QR Code',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xff111827)),
-        ),
-        const SizedBox(height: 10),
-        _buildQrStep(),
+        // Step 2 — Biometric (only visible once inside geofence)
+        if (_isWithinGeofence) ...[
+          const Text(
+            'Step 2: Verify & Mark Attendance',
+            style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: Color(0xff111827)),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Your device\'s fingerprint, face ID, or PIN will be used to confirm your identity.',
+            style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 12),
+          _buildBiometricButton(),
+        ],
       ],
     );
   }
@@ -277,9 +398,13 @@ class _StudentSessionBodyState extends State<_StudentSessionBody> {
         children: [
           Row(
             children: [
-              const Icon(Icons.location_on_outlined, size: 18, color: Color(0xff004ce6)),
+              const Icon(Icons.location_on_outlined,
+                  size: 18, color: Color(0xff004ce6)),
               const SizedBox(width: 8),
-              Text(widget.session.locationName, style: const TextStyle(fontWeight: FontWeight.w600)),
+              Expanded(
+                child: Text(widget.session.locationName,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -309,12 +434,14 @@ class _StudentSessionBodyState extends State<_StudentSessionBody> {
       builder: (context, snapshot) {
         String status = 'pending';
         if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-          final data = snapshot.data!.docs.first.data() as Map<String, dynamic>;
+          final data =
+              snapshot.data!.docs.first.data() as Map<String, dynamic>;
           status = data['status'] ?? 'pending';
         }
 
         final isPresent = status == 'present';
-        final color = isPresent ? const Color(0xff16a34a) : Colors.grey.shade500;
+        final color =
+            isPresent ? const Color(0xff16a34a) : Colors.grey.shade500;
 
         return Container(
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
@@ -324,7 +451,12 @@ class _StudentSessionBodyState extends State<_StudentSessionBody> {
           ),
           child: Row(
             children: [
-              Icon(isPresent ? Icons.check_circle : Icons.hourglass_empty_rounded, color: color),
+              Icon(
+                isPresent
+                    ? Icons.check_circle
+                    : Icons.hourglass_empty_rounded,
+                color: color,
+              ),
               const SizedBox(width: 10),
               Text(
                 isPresent ? 'You are marked Present' : 'Not checked in yet',
@@ -349,34 +481,52 @@ class _StudentSessionBodyState extends State<_StudentSessionBody> {
               backgroundColor: const Color(0xff004ce6),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
             icon: _isCheckingLocation
                 ? const SizedBox(
-                    height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    height: 16,
+                    width: 16,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2),
+                  )
                 : const Icon(Icons.my_location_rounded, size: 18),
-            label: Text(_isCheckingLocation ? 'Checking...' : 'Check My Location'),
+            label: Text(
+                _isCheckingLocation ? 'Checking...' : 'Check My Location'),
           ),
         ),
         if (_hasCheckedLocationOnce && !_isCheckingLocation) ...[
           const SizedBox(height: 10),
           if (_locationError != null)
-            Text(_locationError!, style: const TextStyle(color: Color(0xffdc2626), fontSize: 13))
+            Text(_locationError!,
+                style:
+                    const TextStyle(color: Color(0xffdc2626), fontSize: 13))
           else
             Row(
               children: [
                 Icon(
-                  _isWithinGeofence ? Icons.check_circle : Icons.error_outline,
-                  color: _isWithinGeofence ? const Color(0xff16a34a) : const Color(0xffdc2626),
+                  _isWithinGeofence
+                      ? Icons.check_circle
+                      : Icons.error_outline,
+                  color: _isWithinGeofence
+                      ? const Color(0xff16a34a)
+                      : const Color(0xffdc2626),
                   size: 18,
                 ),
                 const SizedBox(width: 6),
-                Text(
-                  _isWithinGeofence ? 'You are within the classroom area.' : 'You are too far from the classroom.',
-                  style: TextStyle(
-                    color: _isWithinGeofence ? const Color(0xff16a34a) : const Color(0xffdc2626),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                Expanded(
+                  child: Text(
+                    _isWithinGeofence
+                        ? 'You are within the classroom area.'
+                        : 'You are too far from the classroom.',
+                    style: TextStyle(
+                      color: _isWithinGeofence
+                          ? const Color(0xff16a34a)
+                          : const Color(0xffdc2626),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
@@ -386,30 +536,36 @@ class _StudentSessionBodyState extends State<_StudentSessionBody> {
     );
   }
 
-  Widget _buildQrStep() {
-    if (!_isWithinGeofence) {
-      return Container(
-        height: 200,
-        decoration: BoxDecoration(
-          color: const Color(0xfff8f9fa),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Center(
-          child: Text(
-            'Confirm your location first',
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
-          ),
-        ),
-      );
-    }
+  Widget _buildBiometricButton() {
+    final bool isBusy = _isAuthenticating || _isMarkingAttendance;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: SizedBox(
-        height: 280,
-        child: MobileScanner(
-          onDetect: _onQrDetected,
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: isBusy ? null : _authenticateAndMark,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xff16a34a),
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+          elevation: 0,
+        ),
+        icon: isBusy
+            ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                    color: Colors.white, strokeWidth: 2),
+              )
+            : const Icon(Icons.fingerprint_rounded, size: 22),
+        label: Text(
+          _isAuthenticating
+              ? 'Verifying...'
+              : _isMarkingAttendance
+                  ? 'Marking...'
+                  : 'Verify & Mark Attendance',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ),
     );
@@ -440,18 +596,22 @@ class _LecturerSessionBody extends StatelessWidget {
         const SizedBox(height: 24),
         _buildLiveCountsRow(),
         const SizedBox(height: 28),
-
         const Text(
           'Not Checked In',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xff111827)),
+          style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Color(0xff111827)),
         ),
         const SizedBox(height: 10),
         _buildNotCheckedInList(),
         const SizedBox(height: 28),
-
         const Text(
           'Students at \u226515% Absence',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xff111827)),
+          style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Color(0xff111827)),
         ),
         const SizedBox(height: 6),
         Text(
@@ -477,9 +637,13 @@ class _LecturerSessionBody extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.location_on_outlined, size: 18, color: Color(0xff004ce6)),
+              const Icon(Icons.location_on_outlined,
+                  size: 18, color: Color(0xff004ce6)),
               const SizedBox(width: 8),
-              Text(session.locationName, style: const TextStyle(fontWeight: FontWeight.w600)),
+              Expanded(
+                child: Text(session.locationName,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -491,14 +655,6 @@ class _LecturerSessionBody extends StatelessWidget {
                 '${_formatTime(session.startTime)} - ${_formatTime(session.endTime)}',
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.qr_code_2_rounded, size: 18, color: Color(0xff004ce6)),
-              const SizedBox(width: 8),
-              Text('Code: ${session.qrCode}', style: const TextStyle(fontWeight: FontWeight.w600)),
             ],
           ),
         ],
@@ -529,11 +685,16 @@ class _LecturerSessionBody extends StatelessWidget {
 
         return Row(
           children: [
-            Expanded(child: _countTile('Present', present, const Color(0xff16a34a))),
+            Expanded(
+                child:
+                    _countTile('Present', present, const Color(0xff16a34a))),
             const SizedBox(width: 12),
-            Expanded(child: _countTile('Not Ticked', pending, const Color(0xfff59e0b))),
+            Expanded(
+                child: _countTile(
+                    'Not Ticked', pending, const Color(0xfff59e0b))),
             const SizedBox(width: 12),
-            Expanded(child: _countTile('Total', total, const Color(0xff004ce6))),
+            Expanded(
+                child: _countTile('Total', total, const Color(0xff004ce6))),
           ],
         );
       },
@@ -549,9 +710,15 @@ class _LecturerSessionBody extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text('$count', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color)),
+          Text('$count',
+              style: TextStyle(
+                  fontSize: 22, fontWeight: FontWeight.bold, color: color)),
           const SizedBox(height: 4),
-          Text(label, style: TextStyle(fontSize: 11.5, color: color, fontWeight: FontWeight.w600)),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 11.5,
+                  color: color,
+                  fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -577,7 +744,8 @@ class _LecturerSessionBody extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.grey.shade200),
             ),
-            child: Text('Everyone has checked in.', style: TextStyle(color: Colors.grey.shade600)),
+            child: Text('Everyone has checked in.',
+                style: TextStyle(color: Colors.grey.shade600)),
           );
         }
 
@@ -591,16 +759,22 @@ class _LecturerSessionBody extends StatelessWidget {
             children: docs.map((doc) {
               final data = doc.data() as Map<String, dynamic>;
               final studId = data['stud_id'] ?? '';
-              final hasProof = (data['proof'] != null) || ((data['proof_reason'] ?? '').toString().isNotEmpty);
+              final hasProof = (data['proof'] != null) ||
+                  ((data['proof_reason'] ?? '').toString().isNotEmpty);
               return ListTile(
                 leading: const CircleAvatar(
                   backgroundColor: Color(0xfffef3c7),
-                  child: Icon(Icons.person_outline, color: Color(0xfff59e0b)),
+                  child:
+                      Icon(Icons.person_outline, color: Color(0xfff59e0b)),
                 ),
-                title: Text(studId, style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: hasProof ? const Text('Proof of absence submitted') : null,
+                title: Text(studId,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: hasProof
+                    ? const Text('Proof of absence submitted')
+                    : null,
                 trailing: hasProof
-                    ? const Icon(Icons.attach_file_rounded, size: 18, color: Color(0xff004ce6))
+                    ? const Icon(Icons.attach_file_rounded,
+                        size: 18, color: Color(0xff004ce6))
                     : null,
               );
             }).toList(),
@@ -619,7 +793,7 @@ class _LecturerSessionBody extends StatelessWidget {
 }
 
 // ==========================================
-// High-absence (>=15%) list, computed across the whole class
+// High-absence (>=15%) list
 // ==========================================
 class _HighAbsenceList extends StatelessWidget {
   final String clsId;
@@ -667,7 +841,11 @@ class _HighAbsenceList extends StatelessWidget {
       future: _computeHighAbsence(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()));
+          return const Center(
+            child: Padding(
+                padding: EdgeInsets.all(16),
+                child: CircularProgressIndicator()),
+          );
         }
 
         final list = snapshot.data!;
@@ -679,7 +857,10 @@ class _HighAbsenceList extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.grey.shade200),
             ),
-            child: Text('No students currently at or above 15% absence.', style: TextStyle(color: Colors.grey.shade600)),
+            child: Text(
+              'No students currently at or above 15% absence.',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
           );
         }
 
@@ -691,16 +872,23 @@ class _HighAbsenceList extends StatelessWidget {
           ),
           child: Column(
             children: list.map((entry) {
-              final percentage = (entry.value * 100).toStringAsFixed(0);
+              final percentage =
+                  (entry.value * 100).toStringAsFixed(0);
               return ListTile(
                 leading: const CircleAvatar(
                   backgroundColor: Color(0xfffee2e2),
-                  child: Icon(Icons.warning_amber_rounded, color: Color(0xffdc2626)),
+                  child: Icon(Icons.warning_amber_rounded,
+                      color: Color(0xffdc2626)),
                 ),
-                title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.w600)),
+                title: Text(entry.key,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
                 trailing: Text(
                   '$percentage% absent',
-                  style: const TextStyle(color: Color(0xffdc2626), fontWeight: FontWeight.bold, fontSize: 13),
+                  style: const TextStyle(
+                    color: Color(0xffdc2626),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
                 ),
               );
             }).toList(),

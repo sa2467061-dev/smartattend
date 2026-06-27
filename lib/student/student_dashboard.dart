@@ -60,7 +60,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
             displayName: displayName,
           ),
           StudentClassScreen(onProfilePressed: openProfile, userId: effectiveUid ?? ''),
-          StudentHistoryScreen(onProfilePressed: openProfile, userId: effectiveUid),
+          StudentHistoryScreen(onProfilePressed: openProfile, userId: matrixNo), // ✅ FIXED: was effectiveUid
         ];
 
         return Scaffold(
@@ -108,7 +108,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
 class StudentHomeTab extends StatefulWidget {
   final VoidCallback onProfilePressed;
   final String? userId;
-  final String matrixNo; // needed to query session/attendance by student
+  final String matrixNo;
   final String displayName;
 
   const StudentHomeTab({
