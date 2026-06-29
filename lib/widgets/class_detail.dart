@@ -68,14 +68,13 @@ class _SessionsTab extends StatelessWidget {
   const _SessionsTab({required this.classData, required this.isLecturer, required this.userId});
 
   void _openAddSessionSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => AddSessionSheet(classId: classData.id),
-    );
-  }
-
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => AddSessionScreen(classId: classData.id),
+    ),
+  );
+}
   @override
   Widget build(BuildContext context) {
     return ListView(
