@@ -5,6 +5,7 @@ import 'student/student_dashboard.dart';
 import 'lecturer/lecturer_dashboard.dart';
 import '../screens/signin_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../session/session_manager.dart'; // adjust path to wherever you place this file
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,8 +32,9 @@ class SmartAttendApp extends StatelessWidget {
           title: 'SMARTATTEND',
           debugShowCheckedModeBanner: false,
           themeMode: mode,
-          initialRoute: '/login',
+          initialRoute: '/splash',
           routes: {
+            '/splash': (context) => const SplashScreen(),
             '/login': (context) => const LoginScreen(),
             '/signin': (context) => const SignInScreen(),
             // Kept basic named routes for fallbacks if needed elsewhere
@@ -41,6 +43,98 @@ class SmartAttendApp extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// SPLASH SCREEN: checks for a saved session and routes accordingly.
+// Shown briefly on every cold start (after swipe-away, force-stop, restart).
+// ─────────────────────────────────────────────────────────────────────────
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _checkSession();
+  }
+
+  Future<void> _checkSession() async {
+    final session = await SessionManager.getSession();
+
+    // Small delay so the splash screen is actually visible/branded,
+    // rather than flashing instantly. Adjust or remove as you like.
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    if (!mounted) return;
+
+    if (session == null) {
+      Navigator.pushReplacementNamed(context, '/login');
+      return;
+    }
+
+    final userId = session['userId']!;
+    final userRole = session['userRole']!;
+
+    if (userRole == 'student') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => StudentDashboard(userId: userId)),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => LecturerDashboard(userId: userId)),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xfff8f9fa),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xff004ce6),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.domain_verification,
+                  size: 48, color: Colors.white),
+            ),
+            const SizedBox(height: 16),
+            const Text.rich(
+              TextSpan(
+                text: 'SMART',
+                style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.black,
+                    letterSpacing: 0.5),
+                children: [
+                  TextSpan(
+                    text: 'ATTEND',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, color: Color(0xff004ce6)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            const CircularProgressIndicator(color: Color(0xff004ce6)),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -87,6 +181,13 @@ class _LoginScreenState extends State<LoginScreen> {
         // CRITICAL FIX: Extract the actual document ID (uid) from your custom Firestore document
         final userDoc = querySnapshot.docs.first;
         final String firestoreUid = userDoc.id;
+
+        // Persist the session locally so the app skips login on next launch,
+        // even after a swipe-away, force-stop, or phone restart.
+        await SessionManager.saveSession(
+          userId: firestoreUid,
+          userRole: selectedRole,
+        );
 
         if (_isStudent) {
           Navigator.pushReplacement(

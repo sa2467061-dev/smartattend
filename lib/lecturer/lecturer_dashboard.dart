@@ -76,21 +76,69 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
             unselectedItemColor: Colors.grey.shade500,
             selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
             unselectedLabelStyle: const TextStyle(fontSize: 12),
-            items: const [
-              BottomNavigationBarItem(
+            items: [
+              const BottomNavigationBarItem(
                 icon: Icon(Icons.dashboard_outlined),
                 activeIcon: Icon(Icons.dashboard),
                 label: 'Home',
               ),
-              BottomNavigationBarItem(
+              const BottomNavigationBarItem(
                 icon: Icon(Icons.class_outlined),
                 activeIcon: Icon(Icons.class_),
                 label: 'Classes',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.history_toggle_off_rounded),
-                activeIcon: Icon(Icons.history_rounded),
-                label: 'History',
+                icon: StreamBuilder<bool>(
+                  stream: LecturerHistoryScreen.watchHasUnseenProofs(effectiveUid),
+                  builder: (context, snap) {
+                    final hasUnseen = snap.data ?? false;
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        const Icon(Icons.notifications_none_rounded),
+                        if (hasUnseen)
+                          Positioned(
+                            top: -2,
+                            right: -2,
+                            child: Container(
+                              width: 9,
+                              height: 9,
+                              decoration: const BoxDecoration(
+                                color: Color(0xffdc2626),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+                activeIcon: StreamBuilder<bool>(
+                  stream: LecturerHistoryScreen.watchHasUnseenProofs(effectiveUid),
+                  builder: (context, snap) {
+                    final hasUnseen = snap.data ?? false;
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        const Icon(Icons.notifications_rounded),
+                        if (hasUnseen)
+                          Positioned(
+                            top: -2,
+                            right: -2,
+                            child: Container(
+                              width: 9,
+                              height: 9,
+                              decoration: const BoxDecoration(
+                                color: Color(0xffdc2626),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+                label: 'Notifications',
               ),
             ],
           ),
