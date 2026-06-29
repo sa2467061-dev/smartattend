@@ -1,9 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
 import 'session_model.dart';
+import 'supabase_proof_upload.dart'; // the helper we created earlier
 
 class SessionDetailScreen extends StatefulWidget {
   final SessionModel session;
@@ -128,6 +131,10 @@ class _StudentSessionBodyState extends State<_StudentSessionBody> {
   // --- Biometric / attendance state ---
   bool _isAuthenticating = false;
   bool _isMarkingAttendance = false;
+
+  // --- Proof upload state ---
+  bool _isUploadingProof = false;
+  String? _proofUrl;
 
   final LocalAuthentication _localAuth = LocalAuthentication();
 
@@ -299,7 +306,7 @@ class _StudentSessionBodyState extends State<_StudentSessionBody> {
     if (proceed == true && mounted) await _markAttendance();
   }
 
-  // ── Write to Firestore ───────────────────────────────────────────────
+  // ── Write attendance to Firestore ────────────────────────────────────
   Future<void> _markAttendance() async {
     setState(() => _isMarkingAttendance = true);
     try {
@@ -329,6 +336,55 @@ class _StudentSessionBodyState extends State<_StudentSessionBody> {
     }
   }
 
+  // ── Pick + upload proof of absence ───────────────────────────────────
+  Future<void> _submitAbsenceProof() async {
+    if (_isUploadingProof) return;
+
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+    );
+
+    if (result == null || result.files.single.path == null) return; // cancelled
+
+    final file = File(result.files.single.path!);
+
+    setState(() => _isUploadingProof = true);
+
+    try {
+      final proofUrl = await uploadAbsenceProof(
+        file: file,
+        studId: widget.studId,
+        sesId: widget.session.sesId,
+      );
+
+      final attendanceQuery = await FirebaseFirestore.instance
+          .collection('attendance')
+          .where('ses_id', isEqualTo: widget.session.sesId)
+          .where('stud_id', isEqualTo: widget.studId)
+          .limit(1)
+          .get();
+
+      if (attendanceQuery.docs.isEmpty) {
+        _showSnack(
+            false, 'No attendance record found for you in this session.');
+        return;
+      }
+
+      await attendanceQuery.docs.first.reference.update({
+        'proof': proofUrl,
+        'proof_submitted_at': Timestamp.now(),
+      });
+
+      setState(() => _proofUrl = proofUrl);
+      _showSnack(true, 'Proof of absence submitted!');
+    } catch (e) {
+      _showSnack(false, 'Failed to upload proof: $e');
+    } finally {
+      if (mounted) setState(() => _isUploadingProof = false);
+    }
+  }
+
   void _showSnack(bool success, String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -338,7 +394,6 @@ class _StudentSessionBodyState extends State<_StudentSessionBody> {
             success ? const Color(0xff16a34a) : const Color(0xffdc2626),
       ),
     );
-    if (success) setState(() {});
   }
 
   // ── Build ────────────────────────────────────────────────────────────
@@ -380,6 +435,28 @@ class _StudentSessionBodyState extends State<_StudentSessionBody> {
           ),
           const SizedBox(height: 12),
           _buildBiometricButton(),
+        ],
+
+        // Absence proof upload — shown once location has been checked,
+        // so a student who can't be physically present still has a path forward.
+        if (_hasCheckedLocationOnce) ...[
+          const SizedBox(height: 24),
+          const Divider(),
+          const SizedBox(height: 16),
+          const Text(
+            'Can\'t make it to class?',
+            style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: Color(0xff111827)),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Upload a medical certificate or supporting document instead.',
+            style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 12),
+          _buildProofUploadButton(),
         ],
       ],
     );
@@ -567,6 +644,54 @@ class _StudentSessionBodyState extends State<_StudentSessionBody> {
                   : 'Verify & Mark Attendance',
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
+      ),
+    );
+  }
+
+  Widget _buildProofUploadButton() {
+    if (_proofUrl != null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+        decoration: BoxDecoration(
+          color: const Color(0xff004ce6).withAlpha(15),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Color(0xff004ce6)),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Proof submitted — pending lecturer review.',
+                style: TextStyle(
+                    color: Color(0xff004ce6), fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: _isUploadingProof ? null : _submitAbsenceProof,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xff004ce6),
+          side: const BorderSide(color: Color(0xff004ce6)),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        icon: _isUploadingProof
+            ? const SizedBox(
+                height: 16,
+                width: 16,
+                child: CircularProgressIndicator(
+                    color: Color(0xff004ce6), strokeWidth: 2),
+              )
+            : const Icon(Icons.upload_file_rounded, size: 18),
+        label: Text(_isUploadingProof ? 'Uploading...' : 'Upload Proof'),
       ),
     );
   }

@@ -42,11 +42,11 @@ android {
     }
 }
 
-java {
+/*java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(21))
     }
-}
+}*/
 
 
 flutter {

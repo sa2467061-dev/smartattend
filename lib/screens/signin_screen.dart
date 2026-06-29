@@ -81,11 +81,7 @@ class _SignInScreenState extends State<SignInScreen> {
       _showSnackBar('Account created successfully!', isError: false);
 
       // Route dynamically across dashboards
-      if (_isStudent) {
-        Navigator.pushNamedAndRemoveUntil(context, '/student-dashboard', (route) => false);
-      } else {
-        Navigator.pushNamedAndRemoveUntil(context, '/lecturer-dashboard', (route) => false);
-      }
+     Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
     } catch (e) {
       _showSnackBar('Failed to save account: $e');
     } finally {

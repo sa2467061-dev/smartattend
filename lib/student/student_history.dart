@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import '../session/attendance_model.dart';
+import '../session/supabase_proof_upload.dart'; // adjust path if your folder layout differs
 
 class StudentHistoryScreen extends StatefulWidget {
   final VoidCallback? onProfilePressed;
@@ -81,6 +81,7 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
 
         records.add({
           'attId': model.attId,
+          'sesId': model.sesId,
           'status': effectiveStatus,
           'className': className,
           'locationName': locationName,
@@ -126,7 +127,8 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
   }
 
   // ── Upload reason bottom sheet ────────────────────────────────────────────
-  void _showUploadReasonSheet(String attId, String? existingProof, String? existingReason) {
+  void _showUploadReasonSheet(
+      String attId, String sesId, String? existingProof, String? existingReason) {
     final TextEditingController reasonCtrl =
         TextEditingController(text: existingReason ?? '');
     File? pickedImage;
@@ -162,12 +164,11 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
               String? proofUrl = existingProof;
 
               if (pickedImage != null) {
-                final ref = FirebaseStorage.instance
-                    .ref()
-                    .child('attendance_proof')
-                    .child('$attId.jpg');
-                await ref.putFile(pickedImage!);
-                proofUrl = await ref.getDownloadURL();
+                proofUrl = await uploadAbsenceProof(
+                  file: pickedImage!,
+                  studId: widget.userId ?? 'unknown',
+                  sesId: sesId,
+                );
               }
 
               await FirebaseFirestore.instance
@@ -489,6 +490,7 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
     final startTime = record['startTime'] as DateTime?;
     final endTime = record['endTime'] as DateTime?;
     final attId = record['attId'] as String;
+    final sesId = record['sesId'] as String;
     final proof = record['proof'] as String?;
     final proofReason = record['proofReason'] as String?;
 
@@ -618,7 +620,7 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 8),
                       ),
                       onPressed: () =>
-                          _showUploadReasonSheet(attId, proof, proofReason),
+                          _showUploadReasonSheet(attId, sesId, proof, proofReason),
                       icon: Icon(
                           hasReason ? Icons.edit_outlined : Icons.upload_file_rounded,
                           size: 16),
