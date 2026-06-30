@@ -1,16 +1,20 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Required for Clipboard functionality
+import 'package:flutter/services.dart';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
+import 'roster_parser.dart';
+import 'roster_matcher.dart';
 
 String generateClassPin() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; 
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   Random random = Random.secure();
   return List.generate(6, (index) => chars[random.nextInt(chars.length)]).join();
 }
 
 class AddClassScreen extends StatefulWidget {
-  final String? userId; // Optional parameter to pass user ID if needed
+  final String? userId;
   const AddClassScreen({super.key, this.userId});
 
   @override
@@ -20,11 +24,15 @@ class AddClassScreen extends StatefulWidget {
 class _AddClassScreenState extends State<AddClassScreen> {
   final _classNameController = TextEditingController();
   bool _isLoading = false;
-  String? _uploadedFileName;
+  bool _isParsingFile = false;
 
-  // State variables to hold generated details after successful creation
+  String? _uploadedFileName;
+  List<String> _matchedMatrixNumbers = [];
+  List<String> _unmatchedMatrixNumbers = [];
+
   String? _generatedCode;
   bool _isSuccess = false;
+  int _enrolledCount = 0;
 
   @override
   void dispose() {
@@ -32,13 +40,52 @@ class _AddClassScreenState extends State<AddClassScreen> {
     super.dispose();
   }
 
-  void _simulateFilePick() {
+  Future<void> _pickRosterFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['xlsx', 'csv'],
+    );
+    if (result == null || result.files.single.path == null) return;
+
+    final file = File(result.files.single.path!);
     setState(() {
-      _uploadedFileName = 'student_list_2026.xlsx'; 
+      _isParsingFile = true;
+      _uploadedFileName = result.files.single.name;
+      _matchedMatrixNumbers = [];
+      _unmatchedMatrixNumbers = [];
+    });
+
+    try {
+      final candidates = await RosterParser.extractMatrixNumbers(file);
+      final matchResult = await RosterMatcher.matchAgainstStudents(candidates);
+
+      setState(() {
+        _matchedMatrixNumbers = matchResult.matched;
+        _unmatchedMatrixNumbers = matchResult.unmatched;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to read file: $e'), backgroundColor: Colors.red),
+        );
+      }
+      setState(() {
+        _uploadedFileName = null;
+      });
+    } finally {
+      if (mounted) setState(() => _isParsingFile = false);
+    }
+  }
+
+  void _clearRosterFile() {
+    setState(() {
+      _uploadedFileName = null;
+      _matchedMatrixNumbers = [];
+      _unmatchedMatrixNumbers = [];
     });
   }
 
- Future<void> _handleConfirm() async {
+  Future<void> _handleConfirm() async {
     final className = _classNameController.text.trim();
 
     if (className.isEmpty) {
@@ -54,28 +101,24 @@ class _AddClassScreenState extends State<AddClassScreen> {
 
     try {
       String generatedCode = generateClassPin();
-      
-      // Cleanly resolve the logged-in lecturer ID with a fallback
       String currentLectId = widget.userId ?? 'DEV_LECT_TEST_ID';
-      
       if (currentLectId.isEmpty) {
         currentLectId = 'DEV_LECT_TEST_ID';
       }
 
-      // Save to your Firestore 'classes' collection
       await FirebaseFirestore.instance.collection('classes').add({
         'name': className,
         'class_code': generatedCode,
         'lect_id': currentLectId,
-        'student_count': 0,
-        'enrolled_stud': [], 
+        'student_count': _matchedMatrixNumbers.length,
+        'enrolled_stud': _matchedMatrixNumbers,
       });
 
       setState(() {
         _generatedCode = generatedCode;
+        _enrolledCount = _matchedMatrixNumbers.length;
         _isSuccess = true;
       });
-
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -91,7 +134,6 @@ class _AddClassScreenState extends State<AddClassScreen> {
     }
   }
 
-  // Clipboard copy action function
   void _copyToClipboard(String text, String message) {
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -124,15 +166,15 @@ class _AddClassScreenState extends State<AddClassScreen> {
         centerTitle: true,
       ),
       body: SafeArea(
-        child: _isLoading 
-          ? const Center(child: CircularProgressIndicator(color: themeColor))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(28.0),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: _isSuccess ? _buildSuccessView(themeColor) : _buildFormView(themeColor),
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator(color: themeColor))
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(28.0),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  child: _isSuccess ? _buildSuccessView(themeColor) : _buildFormView(themeColor),
+                ),
               ),
-            ),
       ),
     );
   }
@@ -168,9 +210,14 @@ class _AddClassScreenState extends State<AddClassScreen> {
           'Import Student Roster (Optional)',
           style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xff374151), fontSize: 14),
         ),
+        const SizedBox(height: 4),
+        Text(
+          'Excel (.xlsx) or CSV file with student matrix numbers. PDF is not supported — please convert to Excel/CSV first.',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+        ),
         const SizedBox(height: 8),
         GestureDetector(
-          onTap: _simulateFilePick,
+          onTap: _isParsingFile ? null : _pickRosterFile,
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
             decoration: BoxDecoration(
@@ -180,14 +227,19 @@ class _AddClassScreenState extends State<AddClassScreen> {
             ),
             child: Column(
               children: [
-                Icon(
-                  _uploadedFileName == null ? Icons.cloud_upload_outlined : Icons.description_outlined,
-                  size: 36,
-                  color: _uploadedFileName == null ? Colors.grey : const Color(0xff10b981),
-                ),
+                if (_isParsingFile)
+                  const CircularProgressIndicator()
+                else
+                  Icon(
+                    _uploadedFileName == null ? Icons.cloud_upload_outlined : Icons.description_outlined,
+                    size: 36,
+                    color: _uploadedFileName == null ? Colors.grey : const Color(0xff10b981),
+                  ),
                 const SizedBox(height: 10),
                 Text(
-                  _uploadedFileName ?? 'Upload Excel file (.xlsx)',
+                  _isParsingFile
+                      ? 'Reading file...'
+                      : _uploadedFileName ?? 'Upload Excel or CSV file',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
@@ -199,7 +251,21 @@ class _AddClassScreenState extends State<AddClassScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 40),
+
+        if (_uploadedFileName != null && !_isParsingFile) ...[
+          const SizedBox(height: 12),
+          _buildMatchSummary(),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _clearRosterFile,
+              child: const Text('Remove file', style: TextStyle(color: Colors.red)),
+            ),
+          ),
+        ],
+
+        const SizedBox(height: 24),
 
         ElevatedButton(
           style: ElevatedButton.styleFrom(
@@ -216,6 +282,54 @@ class _AddClassScreenState extends State<AddClassScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildMatchSummary() {
+    final matchedCount = _matchedMatrixNumbers.length;
+    final unmatchedCount = _unmatchedMatrixNumbers.length;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.check_circle, size: 16, color: Color(0xff10b981)),
+            const SizedBox(width: 6),
+            Text('$matchedCount student${matchedCount == 1 ? '' : 's'} will be enrolled',
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+          ]),
+          if (unmatchedCount > 0) ...[
+            const SizedBox(height: 8),
+            Row(children: [
+              const Icon(Icons.error_outline, size: 16, color: Color(0xfff59e0b)),
+              const SizedBox(width: 6),
+              Text('$unmatchedCount not found / not registered yet',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.grey.shade700)),
+            ]),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: _unmatchedMatrixNumbers
+                  .map((m) => Chip(
+                        label: Text(m, style: const TextStyle(fontSize: 11)),
+                        backgroundColor: const Color(0xfffef3c7),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ))
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -237,14 +351,15 @@ class _AddClassScreenState extends State<AddClassScreen> {
           style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xff004ce6)),
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Share the credentials below with your students so they can join this room.',
+        Text(
+          _enrolledCount > 0
+              ? '$_enrolledCount student${_enrolledCount == 1 ? '' : 's'} auto-enrolled from your roster file.'
+              : 'Share the credentials below with your students so they can join this room.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey, fontSize: 14),
+          style: const TextStyle(color: Colors.grey, fontSize: 14),
         ),
         const SizedBox(height: 32),
 
-        // PIN Code Display Group
         const Text(
           'Class Join PIN Code',
           style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xff374151), fontSize: 13),
@@ -273,7 +388,6 @@ class _AddClassScreenState extends State<AddClassScreen> {
         ),
         const SizedBox(height: 20),
 
-        // Universal Share Link Display Group
         const Text(
           'Direct Invite Link',
           style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xff374151), fontSize: 13),
@@ -304,7 +418,6 @@ class _AddClassScreenState extends State<AddClassScreen> {
         ),
         const SizedBox(height: 48),
 
-        // Master manual dismiss CTA action
         ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: themeColor,
