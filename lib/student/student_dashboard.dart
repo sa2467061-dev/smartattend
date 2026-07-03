@@ -8,9 +8,9 @@ import '../session/session_query_helper.dart';
 import '../session/current_session_card.dart';
 import '../session/next_session_card.dart';
 import '../session/past_session_card.dart';
-  
+
 class StudentDashboard extends StatefulWidget {
-  final String? userId; 
+  final String? userId;
   const StudentDashboard({super.key, this.userId});
 
   @override
@@ -22,7 +22,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    final String? effectiveUid = widget.userId ?? FirebaseAuth.instance.currentUser?.uid;
+    final String? effectiveUid =
+        widget.userId ?? FirebaseAuth.instance.currentUser?.uid;
 
     void openProfile() {
       Navigator.push(
@@ -34,11 +35,17 @@ class _StudentDashboardState extends State<StudentDashboard> {
     }
 
     return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance.collection('users').doc(effectiveUid).get(),
+      future: FirebaseFirestore.instance
+          .collection('users')
+          .doc(effectiveUid)
+          .get(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator(color: Color(0xff004ce6))),
+          return Scaffold(
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            body: Center(
+                child: CircularProgressIndicator(
+                    color: Theme.of(context).colorScheme.primary)),
           );
         }
 
@@ -59,8 +66,11 @@ class _StudentDashboardState extends State<StudentDashboard> {
             matrixNo: matrixNo,
             displayName: displayName,
           ),
-          StudentClassScreen(onProfilePressed: openProfile, userId: effectiveUid ?? ''),
-          StudentHistoryScreen(onProfilePressed: openProfile, userId: matrixNo), // ✅ FIXED: was effectiveUid
+          StudentClassScreen(
+              onProfilePressed: openProfile, userId: effectiveUid ?? ''),
+          StudentHistoryScreen(
+              onProfilePressed: openProfile,
+              userId: matrixNo), // ✅ FIXED: was effectiveUid
         ];
 
         return Scaffold(
@@ -76,10 +86,16 @@ class _StudentDashboardState extends State<StudentDashboard> {
               });
             },
             type: BottomNavigationBarType.fixed,
-            selectedItemColor: const Color(0xff004ce6),
-            unselectedItemColor: Colors.grey.shade500,
-            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-            unselectedLabelStyle: const TextStyle(fontSize: 12),
+            selectedItemColor: Theme.of(context).colorScheme.primary,
+            unselectedItemColor: Theme.of(context).colorScheme.onSurfaceVariant,
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            selectedLabelStyle: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.primary),
+            unselectedLabelStyle: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
             items: const [
               BottomNavigationBarItem(
                 icon: Icon(Icons.dashboard_outlined),
@@ -148,19 +164,27 @@ class _StudentHomeTabState extends State<StudentHomeTab> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0.5,
+        backgroundColor: theme.appBarTheme.backgroundColor,
+        foregroundColor: theme.appBarTheme.foregroundColor,
+        elevation: theme.appBarTheme.elevation ?? 0.5,
         titleSpacing: 16,
         title: Row(
-          children: const [
-            Icon(Icons.domain_verification, color: Color(0xff004ce6), size: 28),
-            SizedBox(width: 8),
+          children: [
+            Icon(Icons.domain_verification,
+                color: colorScheme.primary, size: 28),
+            const SizedBox(width: 8),
             Text(
               'SMARTATTEND',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 0.5),
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  letterSpacing: 0.5,
+                  color: colorScheme.onBackground),
             ),
           ],
         ),
@@ -168,11 +192,12 @@ class _StudentHomeTabState extends State<StudentHomeTab> {
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: GestureDetector(
-              onTap: widget.onProfilePressed, 
-              child: const CircleAvatar(
+              onTap: widget.onProfilePressed,
+              child: CircleAvatar(
                 radius: 18,
-                backgroundColor: Color(0xff004ce6),
-                child: Icon(Icons.person, color: Colors.white, size: 20),
+                backgroundColor: colorScheme.primary,
+                child:
+                    Icon(Icons.person, color: colorScheme.onPrimary, size: 20),
               ),
             ),
           ),
@@ -188,28 +213,32 @@ class _StudentHomeTabState extends State<StudentHomeTab> {
             children: [
               Text(
                 'Welcome back,',
-                style: TextStyle(fontSize: 16, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                    fontSize: 16,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 2),
               Text(
                 widget.displayName,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xff111827),
+                  color: Theme.of(context).colorScheme.onBackground,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 28),
-
               FutureBuilder<DashboardSessionResult>(
                 future: _sessionsFuture,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 40),
-                      child: Center(child: CircularProgressIndicator(color: Color(0xff004ce6))),
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 40),
+                      child: Center(
+                          child: CircularProgressIndicator(
+                              color: Theme.of(context).colorScheme.primary)),
                     );
                   }
 
@@ -217,8 +246,12 @@ class _StudentHomeTabState extends State<StudentHomeTab> {
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 40),
                       child: Center(
-                        child: Text('Failed to load sessions: ${snapshot.error}',
-                            style: const TextStyle(color: Colors.grey)),
+                        child: Text(
+                            'Failed to load sessions: ${snapshot.error}',
+                            style: TextStyle(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant)),
                       ),
                     );
                   }
@@ -254,17 +287,27 @@ class _StudentHomeTabState extends State<StudentHomeTab> {
                         ),
                         const SizedBox(height: 16),
                       ],
-                      if (result.current == null && result.next == null && result.past == null)
+                      if (result.current == null &&
+                          result.next == null &&
+                          result.past == null)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 40),
                           child: Center(
                             child: Column(
                               children: [
-                                Icon(Icons.event_busy_rounded, size: 48, color: Colors.grey.shade400),
+                                Icon(Icons.event_busy_rounded,
+                                    size: 48,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant),
                                 const SizedBox(height: 12),
                                 Text(
                                   'No sessions to show yet.',
-                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
+                                  style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                      fontSize: 15),
                                 ),
                               ],
                             ),

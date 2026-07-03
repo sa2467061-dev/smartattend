@@ -20,7 +20,8 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
 
   Stream<Map<String, dynamic>> _watchHistoryData() {
     if (widget.userId == null) {
-      return Stream.value({'records': [], 'present': 0, 'absent': 0, 'rate': 0});
+      return Stream.value(
+          {'records': [], 'present': 0, 'absent': 0, 'rate': 0});
     }
 
     return FirebaseFirestore.instance
@@ -54,8 +55,9 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
               startTime = (slot['start'] as Timestamp).toDate();
             }
             if (slot['end'] is Timestamp) {
-              endTime = (slot['end'] as Timestamp).toDate();
-              isPastSession = DateTime.now().isAfter(endTime!);
+              final end = (slot['end'] as Timestamp).toDate();
+              endTime = end;
+              isPastSession = DateTime.now().isAfter(end);
             }
           }
         } catch (_) {}
@@ -121,14 +123,30 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
   }
 
   String _formatDate(DateTime dt) {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return '${days[dt.weekday - 1]}, ${dt.day} ${months[dt.month - 1]} ${dt.year}';
   }
 
   // ── Upload reason bottom sheet ────────────────────────────────────────────
-  void _showUploadReasonSheet(
-      String attId, String sesId, String? existingProof, String? existingReason) {
+  void _showUploadReasonSheet(String attId, String sesId, String? existingProof,
+      String? existingReason) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final dangerColor = Colors.red.shade600;
     final TextEditingController reasonCtrl =
         TextEditingController(text: existingReason ?? '');
     File? pickedImage;
@@ -137,7 +155,8 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: theme.bottomSheetTheme.backgroundColor ??
+          theme.scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
@@ -179,17 +198,20 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
                 'proof_reason': reasonCtrl.text.trim(),
               });
 
-              if (ctx.mounted) Navigator.pop(ctx);
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Reason submitted successfully.')),
+              if (ctx.mounted) {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(
+                      content: Text('Reason submitted successfully.')),
                 );
               }
             } catch (e) {
               setSheet(() => isUploading = false);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed to submit: $e')),
-              );
+              if (ctx.mounted) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(content: Text('Failed to submit: $e')),
+                );
+              }
             }
           }
 
@@ -206,18 +228,22 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.info_outline, color: Color(0xffdc2626)),
+                    Icon(Icons.info_outline, color: dangerColor),
                     const SizedBox(width: 8),
-                    const Text(
+                    Text(
                       'Submit Absence Reason',
-                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface),
                     ),
                   ],
                 ),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   'Provide a reason and optionally upload supporting proof (e.g. MC, university letter).',
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                  style: TextStyle(
+                      fontSize: 13, color: colorScheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 20),
 
@@ -228,14 +254,14 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
                   decoration: InputDecoration(
                     hintText: 'e.g. Medical Certificate — fever and flu',
                     filled: true,
-                    fillColor: const Color(0xfff8f9fa),
+                    fillColor: colorScheme.surface,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
+                      borderSide: BorderSide(color: colorScheme.outline),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
+                      borderSide: BorderSide(color: colorScheme.outline),
                     ),
                   ),
                 ),
@@ -248,10 +274,10 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
                     width: double.infinity,
                     height: pickedImage != null ? 160 : 80,
                     decoration: BoxDecoration(
-                      color: const Color(0xfff1f5f9),
+                      color: colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                          color: const Color(0xffcbd5e1), style: BorderStyle.solid),
+                          color: colorScheme.outline, style: BorderStyle.solid),
                     ),
                     child: pickedImage != null
                         ? ClipRRect(
@@ -261,17 +287,20 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
                         : existingProof != null
                             ? ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
-                                child: Image.network(existingProof, fit: BoxFit.cover),
+                                child: Image.network(existingProof,
+                                    fit: BoxFit.cover),
                               )
                             : Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
-                                children: const [
+                                children: [
                                   Icon(Icons.upload_file_rounded,
-                                      color: Color(0xff94a3b8), size: 28),
-                                  SizedBox(height: 6),
+                                      color: colorScheme.onSurfaceVariant,
+                                      size: 28),
+                                  const SizedBox(height: 6),
                                   Text('Tap to upload proof image (optional)',
                                       style: TextStyle(
-                                          color: Color(0xff94a3b8), fontSize: 13)),
+                                          color: colorScheme.onSurfaceVariant,
+                                          fontSize: 13)),
                                 ],
                               ),
                   ),
@@ -282,8 +311,8 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xffdc2626),
-                      foregroundColor: Colors.white,
+                      backgroundColor: dangerColor,
+                      foregroundColor: colorScheme.onPrimary,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
@@ -291,16 +320,18 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
                     ),
                     onPressed: isUploading ? null : submit,
                     child: isUploading
-                        ? const SizedBox(
+                        ? SizedBox(
                             height: 20,
                             width: 20,
                             child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2))
+                                color: colorScheme.onPrimary, strokeWidth: 2))
                         : Text(
                             existingProof != null || existingReason != null
                                 ? 'Update Reason'
                                 : 'Submit Reason',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onPrimary),
                           ),
                   ),
                 ),
@@ -314,23 +345,30 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: const Color(0xfff8f9fa),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor:
+            theme.appBarTheme.backgroundColor ?? theme.scaffoldBackgroundColor,
+        foregroundColor:
+            theme.appBarTheme.foregroundColor ?? colorScheme.onSurface,
         elevation: 0.5,
         titleSpacing: 16,
         automaticallyImplyLeading: false,
         title: Row(
-          children: const [
-            Icon(Icons.domain_verification, color: Color(0xff004ce6), size: 28),
-            SizedBox(width: 8),
+          children: [
+            Icon(Icons.domain_verification,
+                color: colorScheme.primary, size: 28),
+            const SizedBox(width: 8),
             Text('SMARTATTEND',
                 style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 18,
-                    letterSpacing: 0.5)),
+                    letterSpacing: 0.5,
+                    color: colorScheme.onSurface)),
           ],
         ),
         actions: [
@@ -338,10 +376,11 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
             padding: const EdgeInsets.only(right: 16.0),
             child: GestureDetector(
               onTap: widget.onProfilePressed,
-              child: const CircleAvatar(
+              child: CircleAvatar(
                 radius: 18,
-                backgroundColor: Color(0xff004ce6),
-                child: Icon(Icons.person, color: Colors.white, size: 20),
+                backgroundColor: colorScheme.primary,
+                child:
+                    Icon(Icons.person, color: colorScheme.onPrimary, size: 20),
               ),
             ),
           ),
@@ -357,10 +396,9 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
           if (snapshot.hasError) {
             return Center(
               child: Text('Failed to load history.',
-                  style: TextStyle(color: Colors.grey.shade500)),
+                  style: TextStyle(color: colorScheme.onSurfaceVariant)),
             );
           }
-
           final data = snapshot.data ??
               {'records': [], 'present': 0, 'absent': 0, 'rate': 0};
           final allRecords = data['records'] as List<Map<String, dynamic>>;
@@ -369,23 +407,25 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
           final rate = data['rate'] as int;
 
           final filtered = _filter == 'Absent'
-              ? allRecords.where((r) => r['status'] == 'absent').toList()
+              ? allRecords.where((r) => r['status'] == 'absent')
               : allRecords;
 
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              const Text('Attendance History',
+              Text('Attendance History',
                   style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xff111827))),
+                      color: colorScheme.onSurface)),
               const SizedBox(height: 16),
               Row(
                 children: [
-                  _buildSummaryCard('$present', 'Present', const Color(0xff16a34a)),
+                  _buildSummaryCard(
+                      '$present', 'Present', const Color(0xff16a34a)),
                   const SizedBox(width: 12),
-                  _buildSummaryCard('$absent', 'Absent', const Color(0xffdc2626)),
+                  _buildSummaryCard(
+                      '$absent', 'Absent', const Color(0xffdc2626)),
                   const SizedBox(width: 12),
                   _buildSummaryCard('$rate%', 'Rate', const Color(0xff004ce6)),
                 ],
@@ -393,7 +433,7 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
               const SizedBox(height: 20),
               Container(
                 decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
+                    color: colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(10)),
                 padding: const EdgeInsets.all(4),
                 child: Row(children: [
@@ -411,12 +451,12 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
                           ? 'No absent records. Great attendance!'
                           : 'No attendance records yet.',
                       style: TextStyle(
-                          color: Colors.grey.shade500, fontSize: 14),
+                          color: colorScheme.onSurfaceVariant, fontSize: 14),
                     ),
                   ),
                 )
               else
-                ...filtered.map((r) => _buildRecordCard(r)).toList(),
+                ...filtered.map((r) => _buildRecordCard(r)),
             ],
           );
         },
@@ -425,6 +465,7 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
   }
 
   Widget _buildFilterTab(String label, int count) {
+    final colorScheme = Theme.of(context).colorScheme;
     final isSelected = _filter == label;
     return Expanded(
       child: GestureDetector(
@@ -433,10 +474,15 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
+            color: isSelected ? colorScheme.surface : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             boxShadow: isSelected
-                ? [BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 4, offset: const Offset(0, 1))]
+                ? [
+                    BoxShadow(
+                        color: colorScheme.onSurface.withValues(alpha: 20),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1))
+                  ]
                 : [],
           ),
           child: Row(
@@ -446,16 +492,24 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
                   style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: isSelected ? const Color(0xff111827) : Colors.grey.shade500)),
+                      color: isSelected
+                          ? colorScheme.onSurface
+                          : colorScheme.onSurfaceVariant)),
               const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xff004ce6) : Colors.grey.shade400,
+                    color: isSelected
+                        ? colorScheme.primary
+                        : colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(10)),
                 child: Text('$count',
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                    style: TextStyle(
+                        color: isSelected
+                            ? colorScheme.onPrimary
+                            : colorScheme.onSurface,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -469,14 +523,17 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-            color: color.withAlpha(20), borderRadius: BorderRadius.circular(12)),
+            color: color.withAlpha(20),
+            borderRadius: BorderRadius.circular(12)),
         child: Column(
           children: [
             Text(value,
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color)),
+                style: TextStyle(
+                    fontSize: 22, fontWeight: FontWeight.bold, color: color)),
             const SizedBox(height: 4),
             Text(label,
-                style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
+                style: TextStyle(
+                    fontSize: 12, color: color, fontWeight: FontWeight.w600)),
           ],
         ),
       ),
@@ -484,6 +541,7 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
   }
 
   Widget _buildRecordCard(Map<String, dynamic> record) {
+    final colorScheme = Theme.of(context).colorScheme;
     final status = record['status'] as String;
     final className = record['className'] as String;
     final locationName = record['locationName'] as String;
@@ -501,19 +559,24 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
         ? const Color(0xff16a34a)
         : isAbsent
             ? const Color(0xffdc2626)
-            : Colors.grey;
+            : colorScheme.onSurfaceVariant;
 
-    final String statusLabel =
-        isPresent ? 'Present' : isAbsent ? 'Absent' : 'Pending';
+    final String statusLabel = isPresent
+        ? 'Present'
+        : isAbsent
+            ? 'Absent'
+            : 'Pending';
 
-    final bool hasReason = proofReason != null && proofReason.isNotEmpty;
+    final String? proofReasonValue = proofReason;
+    final bool hasReason =
+        proofReasonValue != null && proofReasonValue.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: colorScheme.outline),
       ),
       child: Column(
         children: [
@@ -544,21 +607,25 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(className,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
-                              color: Color(0xff111827)),
+                              color: colorScheme.onSurface),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 3),
                       if (startTime != null)
                         Text(_formatDate(startTime),
-                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: colorScheme.onSurfaceVariant)),
                       if (startTime != null && endTime != null)
                         Text(
                           '${_formatTime(startTime)} – ${_formatTime(endTime)}'
                           '${locationName.isNotEmpty ? ' · $locationName' : ''}',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: colorScheme.onSurfaceVariant),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -569,13 +636,16 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
               Padding(
                 padding: const EdgeInsets.only(right: 12),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                       color: barColor.withAlpha(20),
                       borderRadius: BorderRadius.circular(20)),
                   child: Text(statusLabel,
                       style: TextStyle(
-                          color: barColor, fontSize: 12, fontWeight: FontWeight.bold)),
+                          color: barColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -583,7 +653,7 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
 
           // ── Absent reason section ─────────────────────────────────────────
           if (isAbsent) ...[
-            Divider(height: 1, color: Colors.grey.shade100),
+            Divider(height: 1, color: colorScheme.outline),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
               child: Column(
@@ -592,19 +662,20 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
                   if (hasReason) ...[
                     Row(
                       children: [
-                        const Icon(Icons.check_circle_outline,
-                            size: 14, color: Color(0xff16a34a)),
+                        Icon(Icons.check_circle_outline,
+                            size: 14, color: const Color(0xff16a34a)),
                         const SizedBox(width: 6),
-                        const Text('Reason submitted',
-                            style: TextStyle(
+                        Text('Reason submitted',
+                            style: const TextStyle(
                                 fontSize: 12,
                                 color: Color(0xff16a34a),
                                 fontWeight: FontWeight.w600)),
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(proofReason!,
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                    Text(proofReasonValue,
+                        style: TextStyle(
+                            fontSize: 12, color: colorScheme.onSurfaceVariant),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 8),
@@ -613,20 +684,25 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xffdc2626),
-                        side: const BorderSide(color: Color(0xffdc2626)),
+                        foregroundColor: colorScheme.primary,
+                        side: BorderSide(color: colorScheme.primary),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8)),
                         padding: const EdgeInsets.symmetric(vertical: 8),
                       ),
-                      onPressed: () =>
-                          _showUploadReasonSheet(attId, sesId, proof, proofReason),
+                      onPressed: () => _showUploadReasonSheet(
+                          attId, sesId, proof, proofReason),
                       icon: Icon(
-                          hasReason ? Icons.edit_outlined : Icons.upload_file_rounded,
+                          hasReason
+                              ? Icons.edit_outlined
+                              : Icons.upload_file_rounded,
                           size: 16),
                       label: Text(
                         hasReason ? 'Update Reason' : 'Submit Absence Reason',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.primary),
                       ),
                     ),
                   ),

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // 1. IMPORT CLOUD FIRESTORE
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -9,16 +9,16 @@ class SignInScreen extends StatefulWidget {
 }
 
 class _SignInScreenState extends State<SignInScreen> {
-  bool _isStudent = true; 
+  bool _isStudent = true;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
-  bool _isLoading = false; // 2. MANAGING DATABASE SUBMIT STATE
+  bool _isLoading = false;
 
-  final _nameController = TextEditingController();
-  final _matrixController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _matrixController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
 
   @override
   void dispose() {
@@ -30,7 +30,6 @@ class _SignInScreenState extends State<SignInScreen> {
     super.dispose();
   }
 
-  // 3. UPDATED METHOD TO WRITE DATA TO FIRESTORE
   Future<void> handleSignUp() async {
     final name = _nameController.text.trim();
     final matrix = _matrixController.text.trim();
@@ -38,7 +37,6 @@ class _SignInScreenState extends State<SignInScreen> {
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
 
-    // Field validations
     if (name.isEmpty || email.isEmpty || password.isEmpty) {
       _showSnackBar('Please fill in all mandatory fields');
       return;
@@ -58,30 +56,22 @@ class _SignInScreenState extends State<SignInScreen> {
 
     try {
       final String role = _isStudent ? 'student' : 'lecturer';
-
-      // Assemble base user map
       final Map<String, dynamic> userData = {
         'name': name,
         'email': email,
-        'password': password, // Note: Consider encryption/Firebase Auth for secure production environments
+        'password': password,
         'role': role,
         'created_at': FieldValue.serverTimestamp(),
       };
 
-      // 4. CONDITIONAL MATRIX DATA STRATEGY
       if (_isStudent) {
         userData['matrix_no'] = matrix;
       }
 
-      // Add document to your 'users' collection
       await FirebaseFirestore.instance.collection('users').add(userData);
-
       if (!mounted) return;
-
       _showSnackBar('Account created successfully!', isError: false);
-
-      // Route dynamically across dashboards
-     Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
     } catch (e) {
       _showSnackBar('Failed to save account: $e');
     } finally {
@@ -92,23 +82,26 @@ class _SignInScreenState extends State<SignInScreen> {
   void _showSnackBar(String message, {bool isError = true}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message), 
-        backgroundColor: isError ? Colors.redAccent : Colors.green
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : Colors.green,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: const Color(0xfff8f9fa),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xfff8f9fa),
+        backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
         automaticallyImplyLeading: false,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xff111827)),
-          onPressed: () => Navigator.pop(context), 
+          icon: Icon(Icons.arrow_back, color: colorScheme.onBackground),
+          onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SafeArea(
@@ -117,23 +110,25 @@ class _SignInScreenState extends State<SignInScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
+              Text(
                 'Create Account',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xff111827)),
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onBackground,
+                ),
               ),
               const SizedBox(height: 6),
-              const Text(
+              Text(
                 'Sign up to get started',
-                style: TextStyle(color: Colors.grey, fontSize: 15),
+                style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 15),
               ),
               const SizedBox(height: 28),
-
-              // --- Sliding Toggle Tab ---
               Container(
                 height: 50,
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: const Color(0xffe9ecef),
+                  color: colorScheme.surfaceVariant,
                   borderRadius: BorderRadius.circular(25),
                 ),
                 child: Row(
@@ -143,7 +138,7 @@ class _SignInScreenState extends State<SignInScreen> {
                         onTap: () => setState(() => _isStudent = true),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: _isStudent ? Colors.white : Colors.transparent,
+                            color: _isStudent ? colorScheme.surface : Colors.transparent,
                             borderRadius: BorderRadius.circular(21),
                           ),
                           child: Center(
@@ -152,7 +147,7 @@ class _SignInScreenState extends State<SignInScreen> {
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
-                                color: _isStudent ? const Color(0xff004ce6) : Colors.grey.shade600,
+                                color: _isStudent ? colorScheme.primary : colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ),
@@ -164,7 +159,7 @@ class _SignInScreenState extends State<SignInScreen> {
                         onTap: () => setState(() => _isStudent = false),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: !_isStudent ? Colors.white : Colors.transparent,
+                            color: !_isStudent ? colorScheme.surface : Colors.transparent,
                             borderRadius: BorderRadius.circular(21),
                           ),
                           child: Center(
@@ -173,7 +168,7 @@ class _SignInScreenState extends State<SignInScreen> {
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
-                                color: !_isStudent ? const Color(0xff111827) : Colors.grey.shade600,
+                                color: !_isStudent ? colorScheme.onBackground : colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ),
@@ -184,81 +179,80 @@ class _SignInScreenState extends State<SignInScreen> {
                 ),
               ),
               const SizedBox(height: 28),
-
-              // --- Full Name Field ---
-              const Text('Full Name', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xff374151), fontSize: 14)),
+              _buildLabel('Full Name', colorScheme),
               const SizedBox(height: 8),
-              _buildTextField(_nameController, 'e.g., Ahmad Ibrahim', TextInputType.name),
+              _buildTextField(_nameController, 'e.g., Ahmad Ibrahim', colorScheme),
               const SizedBox(height: 20),
-
-              // --- Conditional Matrix Number Field (Only for Students) ---
               if (_isStudent) ...[
-                const Text('Matrix Number', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xff374151), fontSize: 14)),
+                _buildLabel('Matrix Number', colorScheme),
                 const SizedBox(height: 8),
-                _buildTextField(_matrixController, 'e.g., 2024288464', TextInputType.text),
+                _buildTextField(_matrixController, 'e.g., 2024288464', colorScheme),
                 const SizedBox(height: 20),
               ],
-
-              // --- Email Field ---
-              const Text('Email Address', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xff374151), fontSize: 14)),
+              _buildLabel('Email Address', colorScheme),
               const SizedBox(height: 8),
               _buildTextField(
-                _emailController, 
-                _isStudent ? 'student@uitm.edu.my' : 'lecturer@uitm.edu.my', 
-                TextInputType.emailAddress
+                _emailController,
+                _isStudent ? 'student@uitm.edu.my' : 'lecturer@uitm.edu.my',
+                colorScheme,
               ),
               const SizedBox(height: 20),
-
-              // --- Password Field ---
-              const Text('Password', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xff374151), fontSize: 14)),
+              _buildLabel('Password', colorScheme),
               const SizedBox(height: 8),
               TextField(
                 controller: _passwordController,
                 obscureText: _obscurePassword,
-                decoration: _buildInputDecoration('â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢').copyWith(
+                decoration: _buildInputDecoration('••••••••', colorScheme).copyWith(
                   suffixIcon: IconButton(
-                    icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: Colors.grey, size: 20),
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                      color: colorScheme.onSurfaceVariant,
+                      size: 20,
+                    ),
                     onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                   ),
                 ),
               ),
               const SizedBox(height: 20),
-
-              // --- Confirm Password Field ---
-              const Text('Confirm Password', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xff374151), fontSize: 14)),
+              _buildLabel('Confirm Password', colorScheme),
               const SizedBox(height: 8),
               TextField(
                 controller: _confirmPasswordController,
                 obscureText: _obscureConfirmPassword,
-                decoration: _buildInputDecoration('â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢').copyWith(
+                decoration: _buildInputDecoration('••••••••', colorScheme).copyWith(
                   suffixIcon: IconButton(
-                    icon: Icon(_obscureConfirmPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: Colors.grey, size: 20),
+                    icon: Icon(
+                      _obscureConfirmPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                      color: colorScheme.onSurfaceVariant,
+                      size: 20,
+                    ),
                     onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
                   ),
                 ),
               ),
               const SizedBox(height: 32),
-
-              // --- Sign Up Action Button ---
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _isStudent ? const Color(0xff004ce6) : const Color(0xff111827),
-                  foregroundColor: Colors.white,
+                  backgroundColor: _isStudent ? colorScheme.primary : colorScheme.onPrimary,
+                  foregroundColor: _isStudent ? colorScheme.onPrimary : colorScheme.primary,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   elevation: 0,
                 ),
-                onPressed: _isLoading ? null : handleSignUp, // Disable interaction during active call
-                child: _isLoading 
-                  ? const SizedBox(
-                      height: 20, 
-                      width: 20, 
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)
-                    )
-                  : const Text(
-                      'Sign Up',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
+                onPressed: _isLoading ? null : handleSignUp,
+                child: _isLoading
+                    ? SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: _isStudent ? colorScheme.onPrimary : colorScheme.primary,
+                        ),
+                      )
+                    : const Text(
+                        'Sign Up',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
               ),
               const SizedBox(height: 24),
             ],
@@ -268,26 +262,43 @@ class _SignInScreenState extends State<SignInScreen> {
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String hint, TextInputType type) {
+  Widget _buildTextField(TextEditingController controller, String hint, ColorScheme colorScheme) {
     return TextField(
       controller: controller,
-      keyboardType: type,
-      decoration: _buildInputDecoration(hint),
+      keyboardType: TextInputType.text,
+      decoration: _buildInputDecoration(hint, colorScheme),
     );
   }
 
-  InputDecoration _buildInputDecoration(String hint) {
+  Widget _buildLabel(String text, ColorScheme colorScheme) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontWeight: FontWeight.w600,
+        color: colorScheme.onSurfaceVariant,
+        fontSize: 14,
+      ),
+    );
+  }
+
+  InputDecoration _buildInputDecoration(String hint, ColorScheme colorScheme) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+      hintStyle: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 14),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
+      fillColor: colorScheme.surface,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: colorScheme.outline),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: colorScheme.outline),
+      ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12), 
-        borderSide: BorderSide(color: _isStudent ? const Color(0xff004ce6) : const Color(0xff111827), width: 1.5)
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
       ),
     );
   }

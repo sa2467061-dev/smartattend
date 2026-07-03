@@ -27,16 +27,17 @@ class ClassDetailScreen extends StatelessWidget {
     return DefaultTabController(
       length: isLecturer ? 2 : 1,
       child: Scaffold(
-        backgroundColor: const Color(0xfff8f9fa),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
           title: Text(classData.name),
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          elevation: 0.5,
+          backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+          foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
+          elevation: Theme.of(context).appBarTheme.elevation ?? 0,
           bottom: TabBar(
-            labelColor: const Color(0xff004ce6),
-            unselectedLabelColor: Colors.grey,
-            indicatorColor: const Color(0xff004ce6),
+            labelColor: Theme.of(context).colorScheme.primary,
+            unselectedLabelColor:
+                Theme.of(context).colorScheme.onSurfaceVariant,
+            indicatorColor: Theme.of(context).colorScheme.primary,
             tabs: [
               const Tab(text: 'Sessions'),
               if (isLecturer) const Tab(text: 'Students Enrolled'),
@@ -46,7 +47,8 @@ class ClassDetailScreen extends StatelessWidget {
         body: TabBarView(
           children: [
             // Tab 1: Class Sessions (Shared Layout view)
-            _SessionsTab(classData: classData, isLecturer: isLecturer, userId: userId),
+            _SessionsTab(
+                classData: classData, isLecturer: isLecturer, userId: userId),
 
             // Tab 2: Student Management List (Lecturer Only View)
             if (isLecturer) _StudentsListTab(classData: classData),
@@ -65,39 +67,51 @@ class _SessionsTab extends StatelessWidget {
   final bool isLecturer;
   final String userId;
 
-  const _SessionsTab({required this.classData, required this.isLecturer, required this.userId});
+  const _SessionsTab(
+      {required this.classData,
+      required this.isLecturer,
+      required this.userId});
 
   void _openAddSessionSheet(BuildContext context) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => AddSessionScreen(classId: classData.id),
-    ),
-  );
-}
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddSessionScreen(classId: classData.id),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return ListView(
       padding: const EdgeInsets.all(24.0),
       children: [
         // Top info displaying code & stats
-        _buildHeaderCard(classData),
+        _buildHeaderCard(classData, theme),
         const SizedBox(height: 24),
 
         // Action Floating Row Context
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
+            Text(
               'Active Sessions',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xff111827)),
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface),
             ),
             if (isLecturer)
               ElevatedButton.icon(
                 onPressed: () => _openAddSessionSheet(context),
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xff004ce6)),
-                icon: const Icon(Icons.add, color: Colors.white, size: 18),
-                label: const Text('New Session', style: TextStyle(color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primary),
+                icon: Icon(Icons.add, color: colorScheme.onPrimary, size: 18),
+                label: Text('New Session',
+                    style: TextStyle(color: colorScheme.onPrimary)),
               ),
           ],
         ),
@@ -110,9 +124,11 @@ class _SessionsTab extends StatelessWidget {
               .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 40.0),
-                child: Center(child: CircularProgressIndicator(color: Color(0xff004ce6))),
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40.0),
+                child: Center(
+                    child:
+                        CircularProgressIndicator(color: colorScheme.primary)),
               );
             }
 
@@ -120,17 +136,20 @@ class _SessionsTab extends StatelessWidget {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 40.0),
                 child: Center(
-                  child: Text('Failed to load sessions: ${snapshot.error}', style: const TextStyle(color: Colors.grey)),
+                  child: Text('Failed to load sessions: ${snapshot.error}',
+                      style: TextStyle(color: colorScheme.onSurfaceVariant)),
                 ),
               );
             }
 
             final docs = snapshot.data?.docs ?? [];
             if (docs.isEmpty) {
-              return const Center(
+              return Center(
                 child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 40.0),
-                  child: Text('No active classroom tracking sequences running yet.', style: TextStyle(color: Colors.grey)),
+                  padding: const EdgeInsets.symmetric(vertical: 40.0),
+                  child: Text(
+                      'No active classroom tracking sequences running yet.',
+                      style: TextStyle(color: colorScheme.onSurfaceVariant)),
                 ),
               );
             }
@@ -145,6 +164,7 @@ class _SessionsTab extends StatelessWidget {
                 if (s.isUpcoming(now: now)) return 1;
                 return 2;
               }
+
               final rankA = rank(a);
               final rankB = rank(b);
               if (rankA != rankB) return rankA.compareTo(rankB);
@@ -195,29 +215,41 @@ class _SessionsTab extends StatelessWidget {
     );
   }
 
-  Widget _buildHeaderCard(ClassModel classData) {
+  Widget _buildHeaderCard(ClassModel classData, ThemeData theme) {
+    final colorScheme = theme.colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: theme.dividerColor),
       ),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Class Join Code:', style: TextStyle(fontWeight: FontWeight.w500)),
-              Text(classData.classCode, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xff004ce6))),
+              Text('Class Join Code:',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: colorScheme.onSurface)),
+              Text(classData.classCode,
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: theme.colorScheme.primary)),
             ],
           ),
           const Divider(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Total Students Enrolled:'),
-              Text('${classData.enrolledStud.length}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text('Total Students Enrolled:',
+                  style: TextStyle(color: colorScheme.onSurface)),
+              Text('${classData.enrolledStud.length}',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface)),
             ],
           ),
         ],

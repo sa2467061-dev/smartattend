@@ -57,7 +57,20 @@ class LecturerHistoryScreen extends StatelessWidget {
   }
 
   String _formatDateTime(DateTime dt) {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
     final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
     final minute = dt.minute.toString().padLeft(2, '0');
     final period = dt.hour >= 12 ? 'PM' : 'AM';
@@ -133,7 +146,8 @@ class LecturerHistoryScreen extends StatelessWidget {
             'classCode': info['classCode'] ?? '',
             'proof': proof,
             'proofReason': proofReason,
-            'seen': data['seen'] ?? true, // docs from before this feature default to seen
+            'seen': data['seen'] ??
+                true, // docs from before this feature default to seen
             'submittedAt': submittedAt,
           });
         }
@@ -162,22 +176,29 @@ class LecturerHistoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: const Color(0xfff8f9fa),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor:
+            theme.appBarTheme.backgroundColor ?? theme.scaffoldBackgroundColor,
+        foregroundColor:
+            theme.appBarTheme.foregroundColor ?? colorScheme.onSurface,
         elevation: 0.5,
         titleSpacing: 16,
         title: Row(
-          children: const [
-            Icon(Icons.domain_verification, color: Color(0xff111827), size: 28),
-            SizedBox(width: 8),
+          children: [
+            Icon(Icons.domain_verification,
+                color: colorScheme.primary, size: 28),
+            const SizedBox(width: 8),
             Text('SMARTATTEND',
                 style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 18,
-                    letterSpacing: 0.5)),
+                    letterSpacing: 0.5,
+                    color: colorScheme.onSurface)),
           ],
         ),
         actions: [
@@ -185,10 +206,11 @@ class LecturerHistoryScreen extends StatelessWidget {
             padding: const EdgeInsets.only(right: 16.0),
             child: GestureDetector(
               onTap: onProfilePressed,
-              child: const CircleAvatar(
+              child: CircleAvatar(
                 radius: 18,
-                backgroundColor: Color(0xff111827),
-                child: Icon(Icons.person, color: Colors.white, size: 20),
+                backgroundColor: colorScheme.primary,
+                child:
+                    Icon(Icons.person, color: colorScheme.onPrimary, size: 20),
               ),
             ),
           ),
@@ -200,15 +222,16 @@ class LecturerHistoryScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Notifications',
+              Text('Notifications',
                   style: TextStyle(
                       fontSize: 26,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xff111827))),
+                      color: colorScheme.onSurface)),
               const SizedBox(height: 6),
-              const Text(
+              Text(
                 'Absence proofs and reasons submitted by your students.',
-                style: TextStyle(color: Colors.grey, fontSize: 14),
+                style: TextStyle(
+                    color: colorScheme.onSurfaceVariant, fontSize: 14),
               ),
               const SizedBox(height: 24),
               Expanded(
@@ -222,7 +245,8 @@ class LecturerHistoryScreen extends StatelessWidget {
                     if (snapshot.hasError) {
                       return Center(
                           child: Text('Error: ${snapshot.error}',
-                              style: TextStyle(color: Colors.grey.shade500)));
+                              style: TextStyle(
+                                  color: colorScheme.onSurfaceVariant)));
                     }
                     final submissions = snapshot.data ?? [];
                     if (submissions.isEmpty) {
@@ -231,11 +255,12 @@ class LecturerHistoryScreen extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.notifications_none_rounded,
-                                size: 48, color: Colors.grey.shade400),
+                                size: 48, color: colorScheme.onSurfaceVariant),
                             const SizedBox(height: 12),
                             Text('No absence proofs submitted yet.',
                                 style: TextStyle(
-                                    color: Colors.grey.shade600, fontSize: 15)),
+                                    color: colorScheme.onSurfaceVariant,
+                                    fontSize: 15)),
                           ],
                         ),
                       );
@@ -257,6 +282,7 @@ class LecturerHistoryScreen extends StatelessWidget {
   }
 
   Widget _buildSubmissionCard(BuildContext context, Map<String, dynamic> s) {
+    final colorScheme = Theme.of(context).colorScheme;
     final bool seen = s['seen'] as bool;
     final DateTime? submittedAt = s['submittedAt'] as DateTime?;
     final String? proof = s['proof'] as String?;
@@ -283,15 +309,17 @@ class LecturerHistoryScreen extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: colorScheme.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: seen ? Colors.grey.shade200 : const Color(0xff004ce6).withAlpha(80),
+            color: seen
+                ? colorScheme.outline
+                : colorScheme.primary.withValues(alpha: 80),
             width: seen ? 1 : 1.5,
           ),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withAlpha(6),
+                color: colorScheme.onSurface.withValues(alpha: 15),
                 blurRadius: 6,
                 offset: const Offset(0, 2))
           ],
@@ -307,7 +335,7 @@ class LecturerHistoryScreen extends StatelessWidget {
                 height: 8,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: seen ? Colors.transparent : const Color(0xffdc2626),
+                  color: seen ? Colors.transparent : colorScheme.error,
                 ),
               ),
             ),
@@ -321,34 +349,40 @@ class LecturerHistoryScreen extends StatelessWidget {
                         child: Text(s['name'] as String,
                             style: TextStyle(
                                 fontSize: 15,
-                                fontWeight: seen ? FontWeight.w600 : FontWeight.bold,
-                                color: const Color(0xff111827)),
+                                fontWeight:
+                                    seen ? FontWeight.w600 : FontWeight.bold,
+                                color: colorScheme.onSurface),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis),
                       ),
                       if (submittedAt != null)
                         Text(_formatDateTime(submittedAt),
-                            style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: colorScheme.onSurfaceVariant)),
                     ],
                   ),
                   const SizedBox(height: 2),
                   Text(s['className'] as String,
-                      style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600)),
+                      style: TextStyle(
+                          fontSize: 12.5, color: colorScheme.onSurfaceVariant)),
                   const SizedBox(height: 8),
                   if (hasReason)
                     Text(proofReason!,
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                        style: TextStyle(
+                            fontSize: 13, color: colorScheme.onSurfaceVariant),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis),
                   if (proof != null && proof.isNotEmpty) ...[
                     const SizedBox(height: 6),
                     Row(children: [
-                      const Icon(Icons.image_outlined, size: 14, color: Color(0xff004ce6)),
+                      Icon(Icons.image_outlined,
+                          size: 14, color: colorScheme.primary),
                       const SizedBox(width: 4),
-                      const Text('Proof attached',
+                      Text('Proof attached',
                           style: TextStyle(
                               fontSize: 12,
-                              color: Color(0xff004ce6),
+                              color: colorScheme.primary,
                               fontWeight: FontWeight.w600)),
                     ]),
                   ],
@@ -381,7 +415,20 @@ class _ProofDetailScreen extends StatelessWidget {
   });
 
   String _formatDateTime(DateTime dt) {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
     final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
     final minute = dt.minute.toString().padLeft(2, '0');
     final period = dt.hour >= 12 ? 'PM' : 'AM';
@@ -390,17 +437,28 @@ class _ProofDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool hasReason = proofReason != null && proofReason!.isNotEmpty;
-    final bool hasProof = proof != null && proof!.isNotEmpty;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final String? proofReasonValue = proofReason;
+    final String? proofValue = proof;
+    final DateTime? submittedAtValue = submittedAt;
+    final bool hasReason =
+        proofReasonValue != null && proofReasonValue.isNotEmpty;
+    final bool hasProof = proofValue != null && proofValue.isNotEmpty;
 
     return Scaffold(
-      backgroundColor: const Color(0xfff8f9fa),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor:
+            theme.appBarTheme.backgroundColor ?? theme.scaffoldBackgroundColor,
+        foregroundColor:
+            theme.appBarTheme.foregroundColor ?? colorScheme.onSurface,
         elevation: 0.5,
-        title: const Text('Absence Submission',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: Text('Absence Submission',
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: colorScheme.onSurface)),
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -408,31 +466,40 @@ class _ProofDetailScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: colorScheme.surface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: colorScheme.outline),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(name,
-                    style: const TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xff111827))),
+                    style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface)),
                 const SizedBox(height: 2),
-                Text(studId, style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+                Text(studId,
+                    style: TextStyle(
+                        fontSize: 13, color: colorScheme.onSurfaceVariant)),
                 const SizedBox(height: 10),
                 Row(children: [
-                  const Icon(Icons.class_outlined, size: 16, color: Colors.grey),
+                  Icon(Icons.class_outlined,
+                      size: 16, color: colorScheme.onSurfaceVariant),
                   const SizedBox(width: 6),
-                  Text(className, style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                  Text(className,
+                      style: TextStyle(
+                          fontSize: 13, color: colorScheme.onSurfaceVariant)),
                 ]),
-                if (submittedAt != null) ...[
+                if (submittedAtValue != null) ...[
                   const SizedBox(height: 6),
                   Row(children: [
-                    const Icon(Icons.access_time_rounded, size: 16, color: Colors.grey),
+                    Icon(Icons.access_time_rounded,
+                        size: 16, color: colorScheme.onSurfaceVariant),
                     const SizedBox(width: 6),
-                    Text(_formatDateTime(submittedAt!),
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                    Text(_formatDateTime(submittedAtValue),
+                        style: TextStyle(
+                            fontSize: 13, color: colorScheme.onSurfaceVariant)),
                   ]),
                 ],
               ],
@@ -440,52 +507,65 @@ class _ProofDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           if (hasReason) ...[
-            const Text('Reason',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xff111827))),
+            Text('Reason',
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface)),
             const SizedBox(height: 8),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: colorScheme.surface,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
+                border: Border.all(color: colorScheme.outline),
               ),
-              child: Text(proofReason!,
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade800)),
+              child: Text(proofReasonValue,
+                  style: TextStyle(
+                      fontSize: 14, color: colorScheme.onSurfaceVariant)),
             ),
             const SizedBox(height: 20),
           ],
           if (hasProof) ...[
-            const Text('Proof',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xff111827))),
+            Text('Proof',
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface)),
             const SizedBox(height: 8),
             GestureDetector(
-              onTap: () => _showFullImage(context, proof!),
+              onTap: () {
+                final proofUrl = proofValue;
+                _showFullImage(context, proofUrl!);
+              },
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.network(
-                  proof!,
+                  proofValue!,
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
                     height: 160,
-                    color: Colors.grey.shade100,
-                    child: const Center(
-                        child: Text('Image unavailable', style: TextStyle(color: Colors.grey))),
+                    color: colorScheme.surfaceContainerHighest,
+                    child: Center(
+                        child: Text('Image unavailable',
+                            style: TextStyle(
+                                color: colorScheme.onSurfaceVariant))),
                   ),
                 ),
               ),
             ),
             const SizedBox(height: 6),
             Text('Tap image to view full size',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+                style: TextStyle(
+                    fontSize: 11, color: colorScheme.onSurfaceVariant)),
           ],
           if (!hasReason && !hasProof)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 40),
               child: Center(
                 child: Text('No content submitted.',
-                    style: TextStyle(color: Colors.grey.shade500)),
+                    style: TextStyle(color: colorScheme.onSurfaceVariant)),
               ),
             ),
         ],
@@ -494,10 +574,11 @@ class _ProofDetailScreen extends StatelessWidget {
   }
 
   void _showFullImage(BuildContext context, String url) {
+    final colorScheme = Theme.of(context).colorScheme;
     showDialog(
       context: context,
       builder: (_) => Dialog(
-        backgroundColor: Colors.black,
+        backgroundColor: colorScheme.surface,
         insetPadding: const EdgeInsets.all(12),
         child: Stack(
           children: [
@@ -507,9 +588,9 @@ class _ProofDetailScreen extends StatelessWidget {
               right: 8,
               child: GestureDetector(
                 onTap: () => Navigator.pop(context),
-                child: const CircleAvatar(
-                  backgroundColor: Colors.white24,
-                  child: Icon(Icons.close, color: Colors.white),
+                child: CircleAvatar(
+                  backgroundColor: colorScheme.onSurface.withValues(alpha: 61),
+                  child: Icon(Icons.close, color: colorScheme.onSurface),
                 ),
               ),
             ),

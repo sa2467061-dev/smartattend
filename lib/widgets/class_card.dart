@@ -28,11 +28,14 @@ class ClassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color: Colors.white,
+      color: colorScheme.surface,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () {
@@ -54,10 +57,10 @@ class ClassCard extends StatelessWidget {
             children: [
               Text(
                 classData.name,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xff111827)),
+                    color: colorScheme.onSurface),
               ),
               const SizedBox(height: 6),
               FutureBuilder<String>(
@@ -69,12 +72,13 @@ class ClassCard extends StatelessWidget {
                           : (snapshot.data ?? 'Unknown Lecturer');
                   return Row(
                     children: [
-                      const Icon(Icons.person_outline,
-                          size: 16, color: Colors.grey),
+                      Icon(Icons.person_outline,
+                          size: 16, color: theme.colorScheme.onSurfaceVariant),
                       const SizedBox(width: 6),
                       Text(lectName,
-                          style:
-                              const TextStyle(color: Colors.grey, fontSize: 14)),
+                          style: TextStyle(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontSize: 14)),
                     ],
                   );
                 },
@@ -83,7 +87,7 @@ class ClassCard extends StatelessWidget {
               // ── Lecturer-only: Students Enrolled button ──────────────────
               if (userRole == 'lecturer') ...[
                 const SizedBox(height: 12),
-                const Divider(height: 1, color: Color(0xfff1f5f9)),
+                Divider(height: 1, color: theme.dividerColor),
                 const SizedBox(height: 10),
                 Row(
                   children: [
@@ -92,8 +96,8 @@ class ClassCard extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       '${classData.enrolledStud.length} student${classData.enrolledStud.length == 1 ? '' : 's'} enrolled',
-                      style: TextStyle(
-                          fontSize: 13, color: Colors.grey.shade500),
+                      style:
+                          TextStyle(fontSize: 13, color: Colors.grey.shade500),
                     ),
                     const Spacer(),
                     GestureDetector(
@@ -107,25 +111,25 @@ class ClassCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xff111827),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('View Students',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600)),
-                            SizedBox(width: 4),
-                            Icon(Icons.arrow_forward_ios_rounded,
-                                size: 11, color: Colors.white),
-                          ],
+                      child: Material(
+                        color: theme.colorScheme.primary,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('View Students',
+                                  style: TextStyle(
+                                      color: theme.colorScheme.onPrimary,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600)),
+                              const SizedBox(width: 4),
+                              Icon(Icons.arrow_forward_ios_rounded,
+                                  size: 11, color: theme.colorScheme.onPrimary),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -193,8 +197,8 @@ class _EnrolledStudentsScreen extends StatelessWidget {
         });
       }
 
-      students.sort((a, b) =>
-          a['name'].toString().compareTo(b['name'].toString()));
+      students
+          .sort((a, b) => a['name'].toString().compareTo(b['name'].toString()));
 
       return students;
     });
@@ -213,8 +217,7 @@ class _EnrolledStudentsScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel',
-                style: TextStyle(color: Colors.grey)),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -267,11 +270,9 @@ class _EnrolledStudentsScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Students Enrolled',
-                style:
-                    TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             Text(className,
-                style:
-                    const TextStyle(fontSize: 12, color: Colors.grey)),
+                style: const TextStyle(fontSize: 12, color: Colors.grey)),
           ],
         ),
       ),
@@ -294,8 +295,8 @@ class _EnrolledStudentsScreen extends StatelessWidget {
                       size: 48, color: Colors.grey.shade400),
                   const SizedBox(height: 12),
                   Text('No students enrolled yet.',
-                      style: TextStyle(
-                          color: Colors.grey.shade600, fontSize: 15)),
+                      style:
+                          TextStyle(color: Colors.grey.shade600, fontSize: 15)),
                 ],
               ),
             );
@@ -306,8 +307,8 @@ class _EnrolledStudentsScreen extends StatelessWidget {
             children: [
               // Header count
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: const Color(0xff111827).withAlpha(8),
                   borderRadius: BorderRadius.circular(10),
@@ -352,8 +353,7 @@ class _EnrolledStudentsScreen extends StatelessWidget {
         border: Border.all(color: Colors.grey.shade200),
       ),
       child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         leading: CircleAvatar(
           backgroundColor: const Color(0xff111827).withAlpha(12),
           child: Text(
@@ -376,22 +376,19 @@ class _EnrolledStudentsScreen extends StatelessWidget {
           children: [
             const SizedBox(height: 2),
             Row(children: [
-              const Icon(Icons.badge_outlined,
-                  size: 13, color: Colors.grey),
+              const Icon(Icons.badge_outlined, size: 13, color: Colors.grey),
               const SizedBox(width: 4),
               Text(s['matrixNo'],
-                  style: TextStyle(
-                      fontSize: 12, color: Colors.grey.shade600)),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
             ]),
             if (s['email'].toString().isNotEmpty) ...[
               const SizedBox(height: 2),
               Row(children: [
-                const Icon(Icons.mail_outline,
-                    size: 13, color: Colors.grey),
+                const Icon(Icons.mail_outline, size: 13, color: Colors.grey),
                 const SizedBox(width: 4),
                 Text(s['email'],
-                    style: TextStyle(
-                        fontSize: 12, color: Colors.grey.shade600)),
+                    style:
+                        TextStyle(fontSize: 12, color: Colors.grey.shade600)),
               ]),
             ],
           ],
@@ -400,8 +397,7 @@ class _EnrolledStudentsScreen extends StatelessWidget {
           icon: const Icon(Icons.person_remove_outlined,
               color: Color(0xffdc2626), size: 22),
           tooltip: 'Remove student',
-          onPressed: () =>
-              _removeStudent(context, s['matrixNo'], s['name']),
+          onPressed: () => _removeStudent(context, s['matrixNo'], s['name']),
         ),
       ),
     );

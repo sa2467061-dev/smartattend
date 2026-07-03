@@ -40,14 +40,16 @@ class PastSessionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isLecturer = userRole == 'lecturer';
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: theme.dividerColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -62,7 +64,8 @@ class PastSessionCard extends StatelessWidget {
                     Row(
                       children: [
                         Icon(Icons.history,
-                            color: Colors.grey.shade500, size: 18),
+                            color: theme.colorScheme.onSurfaceVariant,
+                            size: 18),
                         const SizedBox(width: 6),
                         Text(
                           'PAST SESSION',
@@ -78,10 +81,10 @@ class PastSessionCard extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       className,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xff111827)),
+                          color: colorScheme.onSurface),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -90,15 +93,15 @@ class PastSessionCard extends StatelessWidget {
                     Row(
                       children: [
                         Icon(Icons.calendar_today,
-                            size: 16, color: Colors.grey.shade700),
+                            size: 16,
+                            color: theme.colorScheme.onSurfaceVariant),
                         const SizedBox(width: 6),
                         Text(
                           _formatDate(session.startTime),
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xff374151),
-                          ),
+                          style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurfaceVariant),
                         ),
                       ],
                     ),
@@ -106,15 +109,15 @@ class PastSessionCard extends StatelessWidget {
                     Row(
                       children: [
                         Icon(Icons.access_time,
-                            size: 16, color: Colors.grey.shade700),
+                            size: 16,
+                            color: theme.colorScheme.onSurfaceVariant),
                         const SizedBox(width: 6),
                         Text(
                           _formatTime(session.startTime),
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xff374151),
-                          ),
+                          style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurfaceVariant),
                         ),
                       ],
                     ),
@@ -132,37 +135,34 @@ class PastSessionCard extends StatelessWidget {
           // ---- Lecturer-only edit / delete controls ----
           if (isLecturer) ...[
             const SizedBox(height: 12),
-            const Divider(height: 1),
+            Divider(height: 1, color: theme.dividerColor),
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton.icon(
                   onPressed: () => _showEditDialog(context),
-                  icon: const Icon(Icons.edit,
-                      size: 16, color: Color(0xff004ce6)),
-                  label: const Text('Edit',
-                      style: TextStyle(color: Color(0xff004ce6))),
+                  icon: Icon(Icons.edit, size: 16, color: colorScheme.primary),
+                  label: Text('Edit',
+                      style: TextStyle(color: colorScheme.primary)),
                   style: TextButton.styleFrom(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                 ),
                 const SizedBox(width: 4),
                 TextButton.icon(
                   onPressed: () => _showDeleteDialog(context),
-                  icon: const Icon(Icons.delete_outline,
-                      size: 16, color: Color(0xffdc2626)),
-                  label: const Text('Delete',
-                      style: TextStyle(color: Color(0xffdc2626))),
+                  icon: Icon(Icons.delete_outline,
+                      size: 16, color: colorScheme.error),
+                  label: Text('Delete',
+                      style: TextStyle(color: colorScheme.error)),
                   style: TextButton.styleFrom(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                 ),
               ],
             ),

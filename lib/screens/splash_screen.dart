@@ -13,7 +13,6 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
     Timer(const Duration(seconds: 3), () {
-      // Check if the widget is still in the widget tree before navigating
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/login');
       }
@@ -22,8 +21,10 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Colors.white,
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -31,23 +32,23 @@ class _SplashScreenState extends State<SplashScreen> {
             Icon(
               Icons.qr_code_scanner_rounded,
               size: 80,
-              color: Color(0xff004ce6),
+              color: colorScheme.primary,
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
               'SMARTATTEND',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1.5,
-                color: Color(0xff1f2937),
+                color: colorScheme.onSurface,
               ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               'Geofence-Verified Attendance',
               style: TextStyle(
-                color: Colors.grey,
+                color: colorScheme.onSurfaceVariant,
                 fontSize: 14,
               ),
             ),

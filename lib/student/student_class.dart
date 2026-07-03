@@ -5,7 +5,8 @@ import '../widgets/class_model.dart';
 
 class StudentClassScreen extends StatefulWidget {
   final VoidCallback onProfilePressed;
-  final String userId; // Made required since we must have it to fetch profile data
+  final String
+      userId; // Made required since we must have it to fetch profile data
 
   const StudentClassScreen({
     super.key,
@@ -20,7 +21,8 @@ class StudentClassScreen extends StatefulWidget {
 class _StudentClassScreenState extends State<StudentClassScreen> {
   final TextEditingController _codeController = TextEditingController();
   bool _isJoining = false;
-  String? _fetchedMatrixNo; // Cache the matrix number once loaded (used for display/stream only)
+  String?
+      _fetchedMatrixNo; // Cache the matrix number once loaded (used for display/stream only)
 
   @override
   void dispose() {
@@ -60,7 +62,8 @@ class _StudentClassScreenState extends State<StudentClassScreen> {
       }
 
       final userData = userDoc.data();
-      final String studentMatrixNo = (userData?['matrix_no'] ?? '').toString().trim();
+      final String studentMatrixNo =
+          (userData?['matrix_no'] ?? '').toString().trim();
 
       debugPrint('[JOIN] studentMatrixNo = "$studentMatrixNo"');
 
@@ -79,7 +82,8 @@ class _StudentClassScreenState extends State<StudentClassScreen> {
 
       if (classQuery.docs.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Class code not found. Check with your lecturer.')),
+          const SnackBar(
+              content: Text('Class code not found. Check with your lecturer.')),
         );
         setState(() => _isJoining = false);
         return;
@@ -98,7 +102,9 @@ class _StudentClassScreenState extends State<StudentClassScreen> {
       Navigator.pop(context); // Dismiss the modal sheet overlay
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Successfully joined ${classDoc.get('name') ?? 'Class'}!')),
+        SnackBar(
+            content: Text(
+                'Successfully joined ${classDoc.get('name') ?? 'Class'}!')),
       );
     } catch (e) {
       debugPrint('[JOIN] ERROR: $e');
@@ -114,10 +120,14 @@ class _StudentClassScreenState extends State<StudentClassScreen> {
 
   // Displays input pane to capture alphanumeric course codes safely
   void _showJoinClassDialog() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: theme.bottomSheetTheme.backgroundColor ??
+          theme.scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -134,14 +144,19 @@ class _StudentClassScreenState extends State<StudentClassScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Join Class',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xff111827)),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   'Ask your lecturer for the class code to add it to your profile dashboard list.',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                  style: TextStyle(
+                      color: colorScheme.onSurfaceVariant, fontSize: 13),
                 ),
                 const SizedBox(height: 20),
                 TextField(
@@ -150,14 +165,14 @@ class _StudentClassScreenState extends State<StudentClassScreen> {
                   decoration: InputDecoration(
                     hintText: 'e.g. ITS652',
                     filled: true,
-                    fillColor: _isJoining ? const Color(0xffe9ecef) : const Color(0xfff8f9fa),
+                    fillColor: colorScheme.surface,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
+                      borderSide: BorderSide(color: colorScheme.outline),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
+                      borderSide: BorderSide(color: colorScheme.outline),
                     ),
                   ),
                   textCapitalization: TextCapitalization.characters,
@@ -167,22 +182,29 @@ class _StudentClassScreenState extends State<StudentClassScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xff004ce6),
-                      foregroundColor: Colors.white,
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       elevation: 0,
                     ),
-                    onPressed: _isJoining ? null : () async {
-                      await _joinClassByCode();
-                    },
+                    onPressed: _isJoining
+                        ? null
+                        : () async {
+                            await _joinClassByCode();
+                          },
                     child: _isJoining
-                        ? const SizedBox(
-                            height: 20, 
-                            width: 20, 
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        ? SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                                color: colorScheme.onPrimary, strokeWidth: 2),
                           )
-                        : const Text('Add Class', style: TextStyle(fontWeight: FontWeight.bold)),
+                        : Text('Add Class',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onPrimary)),
                   ),
                 ),
               ],
@@ -195,20 +217,30 @@ class _StudentClassScreenState extends State<StudentClassScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: const Color(0xfff8f9fa),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor:
+            theme.appBarTheme.backgroundColor ?? theme.scaffoldBackgroundColor,
+        foregroundColor:
+            theme.appBarTheme.foregroundColor ?? colorScheme.onSurface,
         elevation: 0.5,
         titleSpacing: 16,
         title: Row(
-          children: const [
-            Icon(Icons.domain_verification, color: Color(0xff004ce6), size: 28),
-            SizedBox(width: 8),
+          children: [
+            Icon(Icons.domain_verification,
+                color: colorScheme.primary, size: 28),
+            const SizedBox(width: 8),
             Text(
               'SMARTATTEND',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 0.5),
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  letterSpacing: 0.5,
+                  color: colorScheme.onSurface),
             ),
           ],
         ),
@@ -217,10 +249,11 @@ class _StudentClassScreenState extends State<StudentClassScreen> {
             padding: const EdgeInsets.only(right: 16.0),
             child: GestureDetector(
               onTap: widget.onProfilePressed,
-              child: const CircleAvatar(
+              child: CircleAvatar(
                 radius: 18,
-                backgroundColor: Color(0xff004ce6),
-                child: Icon(Icons.person, color: Colors.white, size: 20),
+                backgroundColor: colorScheme.primary,
+                child:
+                    Icon(Icons.person, color: colorScheme.onPrimary, size: 20),
               ),
             ),
           ),
@@ -235,34 +268,45 @@ class _StudentClassScreenState extends State<StudentClassScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'Enrolled Classes',
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xff111827)),
+                    style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.add_circle_outline, color: Color(0xff004ce6), size: 28),
+                    icon: Icon(Icons.add_circle_outline,
+                        color: colorScheme.primary, size: 28),
                     onPressed: _showJoinClassDialog,
                   ),
                 ],
               ),
               const SizedBox(height: 6),
-              const Text(
+              Text(
                 'View active tracks and your geofenced enrollment codes.',
-                style: TextStyle(color: Colors.grey, fontSize: 14),
+                style: TextStyle(
+                    color: colorScheme.onSurfaceVariant, fontSize: 14),
               ),
               const SizedBox(height: 24),
-              
               Expanded(
                 // 1. First fetch the student's personal info to grab their matrix number
                 child: FutureBuilder<DocumentSnapshot>(
-                  future: FirebaseFirestore.instance.collection('users').doc(widget.userId).get(),
+                  future: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(widget.userId)
+                      .get(),
                   builder: (context, userSnapshot) {
-                    if (userSnapshot.connectionState == ConnectionState.waiting) {
+                    if (userSnapshot.connectionState ==
+                        ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
                     }
-                    if (userSnapshot.hasError || !userSnapshot.hasData || !userSnapshot.data!.exists) {
+                    if (userSnapshot.hasError ||
+                        !userSnapshot.hasData ||
+                        !userSnapshot.data!.exists) {
                       // DEBUG: this fires if the doc ID (widget.userId) doesn't exist in 'users'
-                      debugPrint('[BUILD] No user doc found for userId="${widget.userId}"');
+                      debugPrint(
+                          '[BUILD] No user doc found for userId="${widget.userId}"');
                       return Center(
                         child: Text(
                           'Failed to load user profile.\n(userId: ${widget.userId})',
@@ -271,10 +315,12 @@ class _StudentClassScreenState extends State<StudentClassScreen> {
                       );
                     }
 
-                    final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+                    final userData =
+                        userSnapshot.data!.data() as Map<String, dynamic>?;
                     debugPrint('[BUILD] userData = $userData');
 
-                    _fetchedMatrixNo = (userData?['matrix_no'] ?? '').toString().trim();
+                    _fetchedMatrixNo =
+                        (userData?['matrix_no'] ?? '').toString().trim();
 
                     if (_fetchedMatrixNo!.isEmpty) {
                       return Center(
@@ -289,22 +335,29 @@ class _StudentClassScreenState extends State<StudentClassScreen> {
                     return StreamBuilder<QuerySnapshot>(
                       stream: FirebaseFirestore.instance
                           .collection('classes')
-                          .where('enrolled_stud', arrayContains: _fetchedMatrixNo)
+                          .where('enrolled_stud',
+                              arrayContains: _fetchedMatrixNo)
                           .snapshots(),
                       builder: (context, classSnapshot) {
-                        if (classSnapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
+                        if (classSnapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                              child: CircularProgressIndicator());
                         }
-                        if (!classSnapshot.hasData || classSnapshot.data!.docs.isEmpty) {
+                        if (!classSnapshot.hasData ||
+                            classSnapshot.data!.docs.isEmpty) {
                           return Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.class_outlined, size: 48, color: Colors.grey.shade400),
+                                Icon(Icons.class_outlined,
+                                    size: 48, color: Colors.grey.shade400),
                                 const SizedBox(height: 12),
                                 Text(
                                   'No enrolled classes yet.',
-                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
+                                  style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 15),
                                 ),
                               ],
                             ),
@@ -313,7 +366,8 @@ class _StudentClassScreenState extends State<StudentClassScreen> {
 
                         return ListView.separated(
                           itemCount: classSnapshot.data!.docs.length,
-                          separatorBuilder: (context, index) => const SizedBox(height: 14),
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 14),
                           itemBuilder: (context, index) {
                             final doc = classSnapshot.data!.docs[index];
                             final classModel = ClassModel.fromFirestore(doc);
