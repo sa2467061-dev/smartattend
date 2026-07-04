@@ -27,11 +27,29 @@ dependencies:
   http: ^1.2.2
   excel: ^4.0.6
   csv: ^6.0.0
+  
+  flutter_native_splash: ^2.4.4
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/
+
+flutter_native_splash:
+  color: "#ffffff"
+  image: assets/images/logo.png
+  android_12:
+    image: assets/images/logo.png
+    color: "#ffffff"
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/logo.png"
+  min_sdk_android: 21
