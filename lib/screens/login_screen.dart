@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../student/student_dashboard.dart';
 import '../lecturer/lecturer_dashboard.dart';
@@ -60,7 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w400,
-                        color: colorScheme.onBackground,
+                        color: colorScheme.onSurface,
                         letterSpacing: 0.5,
                       ),
                       children: [
@@ -82,7 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
-                  color: colorScheme.onBackground,
+                  color: colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 6),
@@ -92,9 +91,74 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 28),
               Container(
-  height: 60,
-  width: double.infinity,
-  color: Colors.red,
+  height: 55,
+  decoration: BoxDecoration(
+    color: Colors.grey.shade200,
+    borderRadius: BorderRadius.circular(30),
+  ),
+  child: Stack(
+    children: [
+      AnimatedAlign(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        alignment:
+            _isStudent ? Alignment.centerLeft : Alignment.centerRight,
+        child: Container(
+          width: MediaQuery.of(context).size.width / 2 - 28,
+          margin: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(26),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
+      ),
+
+      Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: () => setState(() => _isStudent = true),
+              child: Center(
+                child: Text(
+                  "Student",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _isStudent
+                        ? Colors.blue
+                        : Colors.grey,
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          Expanded(
+            child: InkWell(
+              onTap: () => setState(() => _isStudent = false),
+              child: Center(
+                child: Text(
+                  "Lecturer",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: !_isStudent
+                      ? Colors.blue
+                      : Colors.grey,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ],
+  ),
 ),
               const SizedBox(height: 28),
               Text(

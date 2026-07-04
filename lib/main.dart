@@ -3,7 +3,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'student/student_dashboard.dart';
 import 'lecturer/lecturer_dashboard.dart';
-import '../screens/signin_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../session/session_manager.dart'; // adjust path to wherever you place this file
 import 'app_theme.dart'; // adjust path if app_theme.dart isn't directly under lib/
@@ -40,7 +39,6 @@ class SmartAttendApp extends StatelessWidget {
           routes: {
             '/splash': (context) => const SplashScreen(),
             '/login': (context) => const LoginScreen(),
-            '/signin': (context) => const SignInScreen(),
             '/student-dashboard': (context) => const StudentDashboard(),
             '/lecturer-dashboard': (context) => const LecturerDashboard(),
           },
@@ -124,7 +122,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w400,
-                    color: colorScheme.onBackground,
+                    color: colorScheme.onSurface,
                     letterSpacing: 0.5),
                 children: [
                   TextSpan(
@@ -263,7 +261,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w400,
-                          color: colorScheme.onBackground,
+                          color: colorScheme.onSurface,
                           letterSpacing: 0.5),
                       children: [
                         TextSpan(
@@ -282,7 +280,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(
                       fontSize: 26,
                       fontWeight: FontWeight.bold,
-                      color: colorScheme.onBackground)),
+                      color: colorScheme.onSurface)),
               const SizedBox(height: 6),
               Text('Sign in to your account',
                   style: TextStyle(
@@ -292,7 +290,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 height: 50,
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                    color: colorScheme.surfaceVariant,
+                    color: colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(25)),
                 child: Row(
                   children: [
@@ -337,7 +335,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
                                   color: !_isStudent
-                                      ? colorScheme.onBackground
+                                      ? colorScheme.onSurface
                                       : colorScheme.onSurfaceVariant),
                             ),
                           ),
@@ -452,10 +450,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         height: 20,
                         width: 20,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: colorScheme.onBackground))
+                            strokeWidth: 2, color: colorScheme.onSurface))
                     : Text('Log In',
                         style: TextStyle(
-                            color: colorScheme.onBackground,
+                            color: colorScheme.onSurface,
                             fontSize: 16,
                             fontWeight: FontWeight.bold)),
               ),
