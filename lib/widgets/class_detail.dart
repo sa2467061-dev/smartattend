@@ -261,28 +261,78 @@ class _SessionsTab extends StatelessWidget {
 // ==========================================
 // 2. STUDENT LIST TAB (Lecturer View Only)
 // ==========================================
+class _StudentSummary {
+  final String matrixNo;
+  final String name;
+
+  const _StudentSummary({required this.matrixNo, required this.name});
+}
+
 class _StudentsListTab extends StatelessWidget {
   final ClassModel classData;
 
   const _StudentsListTab({required this.classData});
 
-  @override
-  Widget build(BuildContext context) {
-    if (classData.enrolledStud.isEmpty) {
-      return const Center(child: Text('No students have enrolled yet.'));
+  Future<List<_StudentSummary>> _loadStudents() async {
+    final students = <_StudentSummary>[];
+
+    for (final matrixNo in classData.enrolledStud) {
+      String name = matrixNo;
+
+      try {
+        final userSnap = await FirebaseFirestore.instance
+            .collection('users')
+            .where('matrix_no', isEqualTo: matrixNo)
+            .limit(1)
+            .get();
+
+        if (userSnap.docs.isNotEmpty) {
+          final data = userSnap.docs.first.data();
+          name = (data['name'] ?? matrixNo).toString();
+        }
+      } catch (_) {}
+
+      students.add(_StudentSummary(matrixNo: matrixNo, name: name));
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(24.0),
-      itemCount: classData.enrolledStud.length,
-      separatorBuilder: (context, index) => const Divider(),
-      itemBuilder: (context, index) {
-        final studentMatrix = classData.enrolledStud[index];
-        return ListTile(
-          leading: const CircleAvatar(child: Icon(Icons.person)),
-          title: Text('Student Matrix: $studentMatrix'),
-          subtitle: const Text('Status: Enrolled via application entry'),
-          trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+    students
+        .sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return students;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<_StudentSummary>>(
+      future: _loadStudents(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+              child: Text('Failed to load students: ${snapshot.error}'));
+        }
+
+        final students = snapshot.data ?? [];
+
+        if (students.isEmpty) {
+          return const Center(child: Text('No students have enrolled yet.'));
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.all(24.0),
+          itemCount: students.length,
+          separatorBuilder: (context, index) => const Divider(),
+          itemBuilder: (context, index) {
+            final student = students[index];
+            return ListTile(
+              leading: const CircleAvatar(child: Icon(Icons.person)),
+              title: Text(student.name),
+              subtitle: Text('Matrix: ${student.matrixNo}'),
+              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+            );
+          },
         );
       },
     );

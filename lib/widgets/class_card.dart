@@ -165,7 +165,7 @@ class _EnrolledStudentsScreen extends StatelessWidget {
         .asyncMap((classDoc) async {
       if (!classDoc.exists) return [];
 
-      final data = classDoc.data() as Map<String, dynamic>? ?? {};
+      final data = classDoc.data() ?? <String, dynamic>{};
       final List<String> matrixNos =
           List<String>.from(data['enrolled_stud'] ?? []);
 
@@ -175,7 +175,6 @@ class _EnrolledStudentsScreen extends StatelessWidget {
 
       for (final matrixNo in matrixNos) {
         String name = matrixNo;
-        String email = '';
 
         try {
           final userSnap = await FirebaseFirestore.instance
@@ -186,14 +185,12 @@ class _EnrolledStudentsScreen extends StatelessWidget {
           if (userSnap.docs.isNotEmpty) {
             final d = userSnap.docs.first.data();
             name = d['name'] ?? matrixNo;
-            email = d['email'] ?? '';
           }
         } catch (_) {}
 
         students.add({
           'matrixNo': matrixNo,
           'name': name,
-          'email': email,
         });
       }
 
@@ -335,7 +332,7 @@ class _EnrolledStudentsScreen extends StatelessWidget {
                 final index = entry.key;
                 final s = entry.value;
                 return _buildStudentTile(context, s, index + 1);
-              }).toList(),
+              }),
             ],
           );
         },
@@ -381,16 +378,6 @@ class _EnrolledStudentsScreen extends StatelessWidget {
               Text(s['matrixNo'],
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
             ]),
-            if (s['email'].toString().isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Row(children: [
-                const Icon(Icons.mail_outline, size: 13, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text(s['email'],
-                    style:
-                        TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-              ]),
-            ],
           ],
         ),
         trailing: IconButton(
