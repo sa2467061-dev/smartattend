@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:smartattend/screens/signin_screen.dart';
 import 'student/student_dashboard.dart';
 import 'lecturer/lecturer_dashboard.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../session/session_manager.dart'; // adjust path to wherever you place this file
 import 'app_theme.dart'; // adjust path if app_theme.dart isn't directly under lib/
 import 'theme_manager.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,6 +41,7 @@ class SmartAttendApp extends StatelessWidget {
           routes: {
             '/splash': (context) => const SplashScreen(),
             '/login': (context) => const LoginScreen(),
+            '/signin': (context) => SignInScreen(),
             '/student-dashboard': (context) => const StudentDashboard(),
             '/lecturer-dashboard': (context) => const LecturerDashboard(),
           },

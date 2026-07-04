@@ -202,7 +202,7 @@ class _SignInScreenState extends State<SignInScreen> {
               TextField(
                 controller: _passwordController,
                 obscureText: _obscurePassword,
-                decoration: _buildInputDecoration('••••••••', colorScheme).copyWith(
+                decoration: _buildInputDecoration('ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', colorScheme).copyWith(
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
@@ -219,7 +219,7 @@ class _SignInScreenState extends State<SignInScreen> {
               TextField(
                 controller: _confirmPasswordController,
                 obscureText: _obscureConfirmPassword,
-                decoration: _buildInputDecoration('••••••••', colorScheme).copyWith(
+                decoration: _buildInputDecoration('ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', colorScheme).copyWith(
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscureConfirmPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
@@ -239,7 +239,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   elevation: 0,
                 ),
-                onPressed: _isLoading ? null : handleSignUp,
+                onPressed: _isLoading ? null : () => handleSignUp(),  
                 child: _isLoading
                     ? SizedBox(
                         height: 20,
