@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../theme_manager.dart';
+import '../widgets/help_support_dialog.dart';
 
 class StudentProfileScreen extends StatelessWidget {
   final String? userId;
@@ -162,7 +163,8 @@ class StudentProfileScreen extends StatelessWidget {
                                 context,
                                 Icons.help_outline_rounded,
                                 'Help Support',
-                                () {}),
+                                () => showHelpSupportDialog(context,
+                                    isLecturer: false)),
                           ],
                         ),
                       ),
