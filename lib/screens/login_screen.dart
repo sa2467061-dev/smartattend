@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../student/student_dashboard.dart';
 import '../lecturer/lecturer_dashboard.dart';
@@ -91,59 +92,10 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 28),
               Container(
-                height: 50,
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceVariant,
-                  borderRadius: BorderRadius.circular(25),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setState(() => _isStudent = true),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: _isStudent ? colorScheme.surface : Colors.transparent,
-                            borderRadius: BorderRadius.circular(21),
-                          ),
-                          child: Center(
-                            child: Text(
-                              'Student',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: _isStudent ? colorScheme.primary : colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setState(() => _isStudent = false),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: !_isStudent ? colorScheme.surface : Colors.transparent,
-                            borderRadius: BorderRadius.circular(21),
-                          ),
-                          child: Center(
-                            child: Text(
-                              'Lecturer',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: !_isStudent ? colorScheme.onBackground : colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+  height: 60,
+  width: double.infinity,
+  color: Colors.red,
+),
               const SizedBox(height: 28),
               Text(
                 'Email',
@@ -191,7 +143,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 controller: _passwordController,
                 obscureText: _obscurePassword,
                 decoration: InputDecoration(
-                  hintText: '••••••••',
+                  hintText: 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½',
                   hintStyle: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 14),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   fillColor: colorScheme.surface,
