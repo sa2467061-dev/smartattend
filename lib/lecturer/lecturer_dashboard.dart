@@ -65,7 +65,7 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
           ),
           LecturerClassScreen(
               onProfilePressed: openProfile, userId: effectiveUid),
-          LecturerHistoryScreen(
+          LecturerProofReviewScreen(
               onProfilePressed: openProfile, userId: effectiveUid),
         ];
 
@@ -106,7 +106,7 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
               BottomNavigationBarItem(
                 icon: StreamBuilder<bool>(
                   stream:
-                      LecturerHistoryScreen.watchHasUnseenProofs(effectiveUid),
+                      LecturerProofReviewScreen.watchHasUnseenProofs(effectiveUid),
                   builder: (context, snap) {
                     final hasUnseen = snap.data ?? false;
                     return Stack(
@@ -132,7 +132,7 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
                 ),
                 activeIcon: StreamBuilder<bool>(
                   stream:
-                      LecturerHistoryScreen.watchHasUnseenProofs(effectiveUid),
+                      LecturerProofReviewScreen.watchHasUnseenProofs(effectiveUid),
                   builder: (context, snap) {
                     final hasUnseen = snap.data ?? false;
                     return Stack(
@@ -156,7 +156,7 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
                     );
                   },
                 ),
-                label: 'Notifications',
+                label: 'Proofs',
               ),
             ],
           ),

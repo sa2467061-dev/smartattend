@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// Replaces the old "Attendance History" screen for lecturers.
-/// Shows a flat, newest-first list of absence proofs/reasons submitted by
-/// students across all of this lecturer's classes — skips sessions entirely.
-class LecturerHistoryScreen extends StatelessWidget {
+/// Lecturer-facing screen for reviewing absence proofs/reasons submitted by
+/// students across all of this lecturer's classes. Shows a flat, newest-first
+/// list — skips sessions entirely — and lets the lecturer approve or reject
+/// each submission.
+class LecturerProofReviewScreen extends StatelessWidget {
   final VoidCallback onProfilePressed;
   final String? userId; // Firebase Auth UID / Firestore lecturer doc id
 
-  const LecturerHistoryScreen({
+  const LecturerProofReviewScreen({
     super.key,
     required this.onProfilePressed,
     this.userId,
@@ -16,7 +17,7 @@ class LecturerHistoryScreen extends StatelessWidget {
 
   /// Exposed so the dashboard's bottom nav / app bar icon can show a red dot
   /// whenever there's at least one unseen proof, without duplicating the
-  /// class-fetching logic. Usage: StreamBuilder<bool>(stream: LecturerHistoryScreen.watchHasUnseenProofs(userId), ...)
+  /// class-fetching logic. Usage: StreamBuilder<bool>(stream: LecturerProofReviewScreen.watchHasUnseenProofs(userId), ...)
   static Stream<bool> watchHasUnseenProofs(String? userId) {
     if (userId == null) return Stream.value(false);
 
@@ -58,18 +59,8 @@ class LecturerHistoryScreen extends StatelessWidget {
 
   String _formatDateTime(DateTime dt) {
     const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
     final minute = dt.minute.toString().padLeft(2, '0');
@@ -146,6 +137,7 @@ class LecturerHistoryScreen extends StatelessWidget {
             'classCode': info['classCode'] ?? '',
             'proof': proof,
             'proofReason': proofReason,
+            'proofStatus': data['proof_status'], // 'pending' | 'approved' | 'rejected' | null
             'seen': data['seen'] ??
                 true, // docs from before this feature default to seen
             'submittedAt': submittedAt,
@@ -222,14 +214,14 @@ class LecturerHistoryScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Notifications',
+              Text('Proof Review',
                   style: TextStyle(
                       fontSize: 26,
                       fontWeight: FontWeight.bold,
                       color: colorScheme.onSurface)),
               const SizedBox(height: 6),
               Text(
-                'Absence proofs and reasons submitted by your students.',
+                'Review and approve absence proofs/reasons submitted by your students.',
                 style: TextStyle(
                     color: colorScheme.onSurfaceVariant, fontSize: 14),
               ),
@@ -254,7 +246,7 @@ class LecturerHistoryScreen extends StatelessWidget {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.notifications_none_rounded,
+                            Icon(Icons.fact_check_outlined,
                                 size: 48, color: colorScheme.onSurfaceVariant),
                             const SizedBox(height: 12),
                             Text('No absence proofs submitted yet.',
@@ -281,12 +273,55 @@ class LecturerHistoryScreen extends StatelessWidget {
     );
   }
 
+  // ── Status chip helpers (shared look with student screen) ────────────────
+  Color _statusColor(String? proofStatus) {
+    switch (proofStatus) {
+      case 'approved':
+        return const Color(0xff16a34a);
+      case 'rejected':
+        return const Color(0xffdc2626);
+      case 'pending':
+        return const Color(0xffca8a04); // amber — awaiting decision
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _statusLabel(String? proofStatus) {
+    switch (proofStatus) {
+      case 'approved':
+        return 'Approved';
+      case 'rejected':
+        return 'Rejected';
+      case 'pending':
+        return 'Pending Review';
+      default:
+        return 'Pending Review';
+    }
+  }
+
+  Widget _buildStatusChip(String? proofStatus, ColorScheme colorScheme) {
+    final color = _statusColor(proofStatus);
+    final label = _statusLabel(proofStatus);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withAlpha(25),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(label,
+          style: TextStyle(
+              fontSize: 11, fontWeight: FontWeight.bold, color: color)),
+    );
+  }
+
   Widget _buildSubmissionCard(BuildContext context, Map<String, dynamic> s) {
     final colorScheme = Theme.of(context).colorScheme;
     final bool seen = s['seen'] as bool;
     final DateTime? submittedAt = s['submittedAt'] as DateTime?;
     final String? proof = s['proof'] as String?;
     final String? proofReason = s['proofReason'] as String?;
+    final String? proofStatus = s['proofStatus'] as String?;
     final bool hasReason = proofReason != null && proofReason.isNotEmpty;
 
     return GestureDetector(
@@ -296,11 +331,13 @@ class LecturerHistoryScreen extends StatelessWidget {
           context,
           MaterialPageRoute(
             builder: (_) => _ProofDetailScreen(
+              attId: s['attId'] as String,
               name: s['name'] as String,
               studId: s['studId'] as String,
               className: s['className'] as String,
               proof: proof,
               proofReason: proofReason,
+              proofStatus: proofStatus,
               submittedAt: submittedAt,
             ),
           ),
@@ -368,24 +405,28 @@ class LecturerHistoryScreen extends StatelessWidget {
                           fontSize: 12.5, color: colorScheme.onSurfaceVariant)),
                   const SizedBox(height: 8),
                   if (hasReason)
-                    Text(proofReason!,
+                    Text(proofReason,
                         style: TextStyle(
                             fontSize: 13, color: colorScheme.onSurfaceVariant),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis),
-                  if (proof != null && proof.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Row(children: [
-                      Icon(Icons.image_outlined,
-                          size: 14, color: colorScheme.primary),
-                      const SizedBox(width: 4),
-                      Text('Proof attached',
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: colorScheme.primary,
-                              fontWeight: FontWeight.w600)),
-                    ]),
-                  ],
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      if (proof != null && proof.isNotEmpty) ...[
+                        Icon(Icons.image_outlined,
+                            size: 14, color: colorScheme.primary),
+                        const SizedBox(width: 4),
+                        Text('Proof attached',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.w600)),
+                        const SizedBox(width: 10),
+                      ],
+                      _buildStatusChip(proofStatus, colorScheme),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -396,38 +437,107 @@ class LecturerHistoryScreen extends StatelessWidget {
   }
 }
 
-// ── Full detail view for a single submission ──────────────────────────────
-class _ProofDetailScreen extends StatelessWidget {
+// ── Full detail view for a single submission, with approve/reject ─────────
+class _ProofDetailScreen extends StatefulWidget {
+  final String attId;
   final String name;
   final String studId;
   final String className;
   final String? proof;
   final String? proofReason;
+  final String? proofStatus;
   final DateTime? submittedAt;
 
   const _ProofDetailScreen({
+    required this.attId,
     required this.name,
     required this.studId,
     required this.className,
     required this.proof,
     required this.proofReason,
+    required this.proofStatus,
     required this.submittedAt,
   });
 
+  @override
+  State<_ProofDetailScreen> createState() => _ProofDetailScreenState();
+}
+
+class _ProofDetailScreenState extends State<_ProofDetailScreen> {
+  bool _isUpdating = false;
+  late String? _currentStatus;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentStatus = widget.proofStatus;
+  }
+
+  Future<void> _setStatus(String newStatus) async {
+    setState(() => _isUpdating = true);
+    try {
+      await FirebaseFirestore.instance
+          .collection('attendance')
+          .doc(widget.attId)
+          .update({'proof_status': newStatus});
+      if (!mounted) return;
+      setState(() {
+        _currentStatus = newStatus;
+        _isUpdating = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(newStatus == 'approved'
+              ? 'Proof approved.'
+              : 'Proof rejected.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isUpdating = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update: $e')),
+      );
+    }
+  }
+
+  Future<void> _confirmAndSet(String newStatus) async {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isApprove = newStatus == 'approved';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colorScheme.surface,
+        title: Text(isApprove ? 'Approve proof?' : 'Reject proof?'),
+        content: Text(isApprove
+            ? 'This will mark the absence as excused for ${widget.name}.'
+            : 'This will mark the proof as rejected. ${widget.name} can resubmit.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(isApprove ? 'Approve' : 'Reject',
+                style: TextStyle(
+                    color: isApprove
+                        ? const Color(0xff16a34a)
+                        : const Color(0xffdc2626),
+                    fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await _setStatus(newStatus);
+    }
+  }
+
   String _formatDateTime(DateTime dt) {
     const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
     final minute = dt.minute.toString().padLeft(2, '0');
@@ -435,13 +545,113 @@ class _ProofDetailScreen extends StatelessWidget {
     return '${dt.day} ${months[dt.month - 1]} ${dt.year} · $hour:$minute $period';
   }
 
+  Widget _buildStatusBanner(
+      String label, IconData icon, Color color) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withAlpha(20),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 8),
+          Text(label,
+              style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionArea() {
+    if (_currentStatus == 'approved') {
+      return Column(
+        children: [
+          _buildStatusBanner('Approved', Icons.check_circle, const Color(0xff16a34a)),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton(
+              onPressed: _isUpdating ? null : () => _confirmAndSet('rejected'),
+              child: const Text('Change to Rejected',
+                  style: TextStyle(color: Color(0xffdc2626))),
+            ),
+          ),
+        ],
+      );
+    }
+    if (_currentStatus == 'rejected') {
+      return Column(
+        children: [
+          _buildStatusBanner('Rejected', Icons.cancel, const Color(0xffdc2626)),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton(
+              onPressed: _isUpdating ? null : () => _confirmAndSet('approved'),
+              child: const Text('Change to Approved',
+                  style: TextStyle(color: Color(0xff16a34a))),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // pending (or null/no explicit status yet) — show action buttons
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _isUpdating ? null : () => _confirmAndSet('rejected'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xffdc2626),
+              side: const BorderSide(color: Color(0xffdc2626)),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            icon: const Icon(Icons.close, size: 18),
+            label: const Text('Reject'),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: _isUpdating ? null : () => _confirmAndSet('approved'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xff16a34a),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
+            icon: _isUpdating
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.check, size: 18),
+            label: const Text('Approve'),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final String? proofReasonValue = proofReason;
-    final String? proofValue = proof;
-    final DateTime? submittedAtValue = submittedAt;
+    final String? proofReasonValue = widget.proofReason;
+    final String? proofValue = widget.proof;
+    final DateTime? submittedAtValue = widget.submittedAt;
     final bool hasReason =
         proofReasonValue != null && proofReasonValue.isNotEmpty;
     final bool hasProof = proofValue != null && proofValue.isNotEmpty;
@@ -473,13 +683,13 @@ class _ProofDetailScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name,
+                Text(widget.name,
                     style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.bold,
                         color: colorScheme.onSurface)),
                 const SizedBox(height: 2),
-                Text(studId,
+                Text(widget.studId,
                     style: TextStyle(
                         fontSize: 13, color: colorScheme.onSurfaceVariant)),
                 const SizedBox(height: 10),
@@ -487,7 +697,7 @@ class _ProofDetailScreen extends StatelessWidget {
                   Icon(Icons.class_outlined,
                       size: 16, color: colorScheme.onSurfaceVariant),
                   const SizedBox(width: 6),
-                  Text(className,
+                  Text(widget.className,
                       style: TextStyle(
                           fontSize: 13, color: colorScheme.onSurfaceVariant)),
                 ]),
@@ -535,14 +745,11 @@ class _ProofDetailScreen extends StatelessWidget {
                     color: colorScheme.onSurface)),
             const SizedBox(height: 8),
             GestureDetector(
-              onTap: () {
-                final proofUrl = proofValue;
-                _showFullImage(context, proofUrl!);
-              },
+              onTap: () => _showFullImage(context, proofValue),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.network(
-                  proofValue!,
+                  proofValue,
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
                     height: 160,
@@ -559,6 +766,7 @@ class _ProofDetailScreen extends StatelessWidget {
             Text('Tap image to view full size',
                 style: TextStyle(
                     fontSize: 11, color: colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 20),
           ],
           if (!hasReason && !hasProof)
             Padding(
@@ -568,6 +776,15 @@ class _ProofDetailScreen extends StatelessWidget {
                     style: TextStyle(color: colorScheme.onSurfaceVariant)),
               ),
             ),
+          if (hasReason || hasProof) ...[
+            Text('Decision',
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface)),
+            const SizedBox(height: 10),
+            _buildActionArea(),
+          ],
         ],
       ),
     );

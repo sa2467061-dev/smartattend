@@ -91,6 +91,7 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
           'endTime': endTime,
           'proof': model.proof,
           'proofReason': model.proofReason,
+          'proofStatus': model.proofStatus, // 'pending' | 'approved' | 'rejected' | null
         });
       }
 
@@ -124,21 +125,51 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
 
   String _formatDate(DateTime dt) {
     const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return '${days[dt.weekday - 1]}, ${dt.day} ${months[dt.month - 1]} ${dt.year}';
+  }
+
+  // ── Status chip helpers (shared look with lecturer screen) ───────────────
+  Color _statusColor(String? proofStatus) {
+    switch (proofStatus) {
+      case 'approved':
+        return const Color(0xff16a34a);
+      case 'rejected':
+        return const Color(0xffdc2626);
+      case 'pending':
+        return const Color(0xffca8a04); // amber — awaiting lecturer decision
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _statusLabel(String? proofStatus) {
+    switch (proofStatus) {
+      case 'approved':
+        return 'Approved';
+      case 'rejected':
+        return 'Rejected — please resubmit';
+      case 'pending':
+        return 'Pending Review';
+      default:
+        return '';
+    }
+  }
+
+  IconData _statusIcon(String? proofStatus) {
+    switch (proofStatus) {
+      case 'approved':
+        return Icons.check_circle_outline;
+      case 'rejected':
+        return Icons.error_outline;
+      case 'pending':
+        return Icons.hourglass_top_rounded;
+      default:
+        return Icons.info_outline;
+    }
   }
 
   // ── Upload reason bottom sheet ────────────────────────────────────────────
@@ -196,6 +227,14 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
                   .update({
                 'proof': proofUrl,
                 'proof_reason': reasonCtrl.text.trim(),
+                // Every (re)submission resets the review workflow to pending,
+                // even if this attId was previously rejected.
+                'proof_status': 'pending',
+                'proof_submitted_at': Timestamp.now(),
+                // A fresh/updated submission should surface again for the
+                // lecturer, whether it's a first submission or a resubmit
+                // after rejection.
+                'seen': false,
               });
 
               if (ctx.mounted) {
@@ -551,25 +590,40 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
     final sesId = record['sesId'] as String;
     final proof = record['proof'] as String?;
     final proofReason = record['proofReason'] as String?;
+    final proofStatus = record['proofStatus'] as String?;
 
     final isPresent = status == 'present';
     final isAbsent = status == 'absent';
+    // An absence with a lecturer-approved proof is an "excused" absence —
+    // show it as yellow/amber instead of red so it reads as resolved rather
+    // than as a problem still needing attention.
+    final bool isExcusedAbsence = isAbsent && proofStatus == 'approved';
 
     final Color barColor = isPresent
         ? const Color(0xff16a34a)
-        : isAbsent
-            ? const Color(0xffdc2626)
-            : colorScheme.onSurfaceVariant;
+        : isExcusedAbsence
+            ? const Color(0xffca8a04)
+            : isAbsent
+                ? const Color(0xffdc2626)
+                : colorScheme.onSurfaceVariant;
 
     final String statusLabel = isPresent
         ? 'Present'
-        : isAbsent
-            ? 'Absent'
-            : 'Pending';
+        : isExcusedAbsence
+            ? 'Excused'
+            : isAbsent
+                ? 'Absent'
+                : 'Pending';
 
     final String? proofReasonValue = proofReason;
     final bool hasReason =
         proofReasonValue != null && proofReasonValue.isNotEmpty;
+
+    // While a submission is awaiting review or has been approved, don't let
+    // the student edit it — only allow editing when nothing's submitted yet
+    // or the previous submission was rejected.
+    final bool canEditSubmission =
+        proofStatus == null || proofStatus == 'rejected';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -651,7 +705,7 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
             ],
           ),
 
-          // ── Absent reason section ─────────────────────────────────────────
+          // ── Absent reason / proof-review section ──────────────────────────
           if (isAbsent) ...[
             Divider(height: 1, color: colorScheme.outline),
             Padding(
@@ -662,14 +716,18 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
                   if (hasReason) ...[
                     Row(
                       children: [
-                        Icon(Icons.check_circle_outline,
-                            size: 14, color: const Color(0xff16a34a)),
+                        Icon(_statusIcon(proofStatus),
+                            size: 14, color: _statusColor(proofStatus)),
                         const SizedBox(width: 6),
-                        Text('Reason submitted',
-                            style: const TextStyle(
-                                fontSize: 12,
-                                color: Color(0xff16a34a),
-                                fontWeight: FontWeight.w600)),
+                        Text(
+                          proofStatus == null
+                              ? 'Reason submitted'
+                              : _statusLabel(proofStatus),
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: _statusColor(proofStatus),
+                              fontWeight: FontWeight.w600),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -680,32 +738,47 @@ class _StudentHistoryScreenState extends State<StudentHistoryScreen> {
                         overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 8),
                   ],
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: colorScheme.primary,
-                        side: BorderSide(color: colorScheme.primary),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
+                  if (canEditSubmission)
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: colorScheme.primary,
+                          side: BorderSide(color: colorScheme.primary),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                        ),
+                        onPressed: () => _showUploadReasonSheet(
+                            attId, sesId, proof, proofReason),
+                        icon: Icon(
+                            hasReason
+                                ? Icons.edit_outlined
+                                : Icons.upload_file_rounded,
+                            size: 16),
+                        label: Text(
+                          proofStatus == 'rejected'
+                              ? 'Resubmit Reason'
+                              : hasReason
+                                  ? 'Update Reason'
+                                  : 'Submit Absence Reason',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.primary),
+                        ),
                       ),
-                      onPressed: () => _showUploadReasonSheet(
-                          attId, sesId, proof, proofReason),
-                      icon: Icon(
-                          hasReason
-                              ? Icons.edit_outlined
-                              : Icons.upload_file_rounded,
-                          size: 16),
-                      label: Text(
-                        hasReason ? 'Update Reason' : 'Submit Absence Reason',
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: colorScheme.primary),
-                      ),
+                    )
+                  else
+                    Text(
+                      proofStatus == 'pending'
+                          ? 'Waiting for your lecturer to review this submission.'
+                          : 'This submission has been approved.',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                          color: colorScheme.onSurfaceVariant),
                     ),
-                  ),
                 ],
               ),
             ),
